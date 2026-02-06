@@ -1,5 +1,100 @@
 import { C, RNG } from '../core/Constants';
 import { Vec2 } from '../core/Vector2';
+<<<<<<< HEAD
+
+export type Entity = { id: string, pos: Vec2, vel: Vec2, type: 'ALLY'|'ENEMY'|'GK'|'BALL' };
+export type Pass = { fromId: string, toId: string|null, targetPos?: Vec2 }; // targetPos for shoot
+
+export class Simulator {
+  entities: Entity[] = [];
+  ball: Entity;
+  time = 0;
+  result: string | null = null;
+  rng: RNG;
+
+  constructor(seed: number, levelData: any) {
+    this.rng = new RNG(seed);
+    this.reset(levelData);
+  }
+
+  reset(levelData: any) {
+    this.time = 0;
+    this.result = null;
+    // ... JSONからエンティティ初期化 (省略: P1~P3, D1~Dn, GK)
+    // Ballは最初は消しておくかP1の位置へ
+  }
+
+  // 1フレーム更新
+  update(dt: number, passes: Pass[], timing: 'EARLY'|'LATE', tactic: string) {
+    if (this.result) return;
+    this.time += dt;
+
+    // 1. Kick Event Check
+    const kickTime = timing === 'EARLY' ? C.TIME_EARLY : C.TIME_LATE;
+    
+    // OFFSIDE CHECK at kick moment
+    if (Math.abs(this.time - kickTime) < dt / 2) {
+      const defenders = this.entities.filter(e => e.type === 'ENEMY').map(e => e.pos.y).sort((a,b) => b-a);
+      const offsideLine = defenders[1] || 0; // 2nd deepest
+      const receiver = this.entities.find(e => e.id === passes[0].toId);
+      
+      if (receiver && receiver.pos.y > offsideLine) {
+        this.result = 'OFFSIDE';
+        return;
+      }
+      
+      // AI TACTIC: High Line (Start Shift)
+      if (tactic === 'HIGH_LINE') {
+        this.entities.filter(e => e.type === 'ENEMY').forEach(e => e.pos.y += 18);
+      }
+    }
+
+    // 2. Movement
+    this.entities.forEach(e => {
+      // P2 run logic
+      if (e.id === 'P2' && this.time < kickTime) {
+        e.pos.y += C.PLAYER_SPD * dt;
+      }
+      
+      // AI TACTIC: Man Mark
+      if (tactic === 'MAN_MARK' && e.id === 'D1') {
+         const p2 = this.entities.find(p => p.id === 'P2');
+         if (p2) {
+           const dir = p2.pos.sub(e.pos).norm();
+           e.pos = e.pos.add(dir.mul(C.DF_SPD * dt));
+         }
+      }
+      
+      // Physics integration
+      e.pos = e.pos.add(e.vel.mul(dt));
+    });
+
+    // 3. Collision / Intercept (Segment check)
+    // ボールが移動中の場合、前フレーム位置(prev)と現在位置(curr)の線分で判定
+    if (this.ball.vel.len() > 0) {
+      const prev = this.ball.pos.sub(this.ball.vel.mul(dt));
+      const curr = this.ball.pos;
+
+      // Check Defenders
+      for (const df of this.entities.filter(e => e.type === 'ENEMY' || e.type === 'GK')) {
+        const radius = df.type === 'GK' ? C.GK_CATCH_R : C.DF_INTERCEPT_R;
+        const dist = Vec2.distSegmentPoint(prev, curr, df.pos);
+        if (dist <= radius + C.BALL_R) {
+          this.result = df.type === 'GK' ? 'GK_CATCH' : 'INTERCEPT';
+          return;
+        }
+      }
+
+      // Check Goal
+      if (curr.y >= C.GOAL_Y) {
+        if (curr.x >= C.GOAL_MIN_X && curr.x <= C.GOAL_MAX_X) {
+          this.result = 'GOAL';
+        } else {
+          this.result = 'MISS';
+        }
+      }
+    }
+=======
 import type { Entity, LevelData, Tactic } from './Types';
 
 export type SimResult = 'GOAL' | 'OFFSIDE' | 'INTERCEPT' | 'GK_CATCH' | 'MISS';
@@ -283,5 +378,6 @@ export class Simulator {
   private getGK(): Entity {
     const e = this.entities.find(x => x.type === 'GK')!;
     return e;
+>>>>>>> e2a4063 (Initial commit: Football Line Break (PWA demo))
   }
 }

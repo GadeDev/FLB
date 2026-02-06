@@ -6,6 +6,52 @@ export class AudioSynth {
     this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
   }
 
+<<<<<<< HEAD
+  play(type: 'tap' | 'kick' | 'intercept' | 'goal' | 'whistle' | 'draw') {
+    if (!this.enabled || this.ctx.state === 'suspended') this.ctx.resume();
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    switch (type) {
+      case 'tap':
+        osc.frequency.setValueAtTime(800, t);
+        osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.1);
+        gain.gain.setValueAtTime(0.1, t);
+        osc.start(t); osc.stop(t + 0.1);
+        break;
+      case 'kick':
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(150, t);
+        osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.2);
+        gain.gain.setValueAtTime(0.5, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+        osc.start(t); osc.stop(t + 0.2);
+        break;
+      case 'whistle':
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(2000, t);
+        osc.frequency.linearRampToValueAtTime(1800, t + 0.1);
+        gain.gain.setValueAtTime(0.1, t);
+        osc.start(t); osc.stop(t + 0.3);
+        break;
+      case 'goal':
+        // C Major chord arpeggio roughly
+        [523.25, 659.25, 783.99].forEach((freq, i) => {
+          const o = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          o.connect(g); g.connect(this.ctx.destination);
+          o.type = 'sine';
+          o.frequency.value = freq;
+          g.gain.setValueAtTime(0.1, t + i*0.1);
+          g.gain.linearRampToValueAtTime(0, t + i*0.1 + 0.5);
+          o.start(t + i*0.1); o.stop(t + i*0.1 + 0.5);
+        });
+        break;
+      // ... 他省略
+=======
   setEnabled(v: boolean) { this.enabled = v; }
 
   play(type: 'tap' | 'kick' | 'intercept' | 'goal' | 'whistle' | 'draw') {
@@ -87,6 +133,7 @@ export class AudioSynth {
         });
         break;
       }
+>>>>>>> e2a4063 (Initial commit: Football Line Break (PWA demo))
     }
   }
 }

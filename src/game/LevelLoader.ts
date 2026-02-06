@@ -36,12 +36,7 @@ export function fallbackLevel(): LevelData {
 
 export async function loadFirstLevel(): Promise<LevelData> {
   try {
-    // IMPORTANT:
-    // GitHub Pages is hosted under /<repo>/ (e.g. /FLB/).
-    // Using an absolute path like '/levels.json' would break on Pages.
-    const base = (import.meta as any).env?.BASE_URL ?? '/';
-    const url = base.endsWith('/') ? `${base}levels.json` : `${base}/levels.json`;
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetch('/levels.json', { cache: 'no-store' });
     if (!res.ok) return fallbackLevel();
     const file = (await res.json()) as LevelsFile;
     if (!file.levels || file.levels.length === 0) return fallbackLevel();

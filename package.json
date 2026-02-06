@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
+  "name": "line-break-lab",
+=======
   "name": "flb",
+>>>>>>> e2a4063 (Initial commit: Football Line Break (PWA demo))
   "private": true,
   "version": "0.0.0",
   "type": "module",
