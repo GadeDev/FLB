@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#08131F" />
+  <title>Football Line Break</title>
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+      <!-- Top -->
+      <div id="header">
+        <div class="brand">
+          <div class="brand-title">FOOTBALL LINE BREAK</div>
+          <div class="brand-sub">Tactical puzzle • 20 seconds</div>
+        </div>
+        <div class="badges">
+          <div class="level-badge" id="level-badge">DAILY #001</div>
+          <div id="tactic-tag" class="tactic-badge">TACTIC: HIGH LINE</div>
+        </div>
+      </div>
+
+      <!-- Bottom HUD -->
+      <div id="hud-bottom">
+        <div class="control-group">
+          <button id="btn-mode" class="pill-btn" title="Toggle Move / Pass">MOVE</button>
+          <button id="btn-undo" class="icon-btn" title="Undo">↺</button>
+          <button id="btn-reset" class="icon-btn" title="Reset">⟲</button>
+        </div>
+
+        <div class="control-group timing-toggle">
+          <label>RUN TIMING</label>
+          <button id="btn-timing" class="pill-btn">EARLY</button>
+        </div>
+
+        <button id="btn-run" class="action-btn">EXECUTE</button>
+      </div>
+
+      <!-- Result overlay -->
+      <div id="screen-result" class="screen hidden">
+        <div class="result-card">
+          <h1 id="result-title">GOAL</h1>
+          <p id="result-reason">Perfect break.</p>
+          <button id="btn-retry" class="action-btn">RETRY</button>
+        </div>
+      </div>
+
+      <!-- Hint -->
+      <div id="hint" class="hint">
+        <span class="hint-key">TIP</span>
+        <span id="hint-text">MOVE mode: drag players. PASS mode: drag from P1 to P2/P3.</span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
