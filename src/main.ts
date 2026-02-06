@@ -1,10 +1,4 @@
 import './style.css';
-<<<<<<< HEAD
-import { AudioSynth } from './core/AudioSynth';
-import { Renderer } from './game/Renderer';
-import { Simulator } from './game/Simulator';
-// ... imports
-=======
 import { C } from './core/Constants';
 import { Vec2 } from './core/Vector2';
 import { AudioSynth } from './core/AudioSynth';
@@ -15,91 +9,10 @@ import type { EditStateSnapshot, LevelData } from './game/Types';
 
 type Mode = 'MOVE' | 'PASS';
 type State = 'EDIT' | 'RUN';
->>>>>>> e2a4063 (Initial commit: Football Line Break (PWA demo))
 
 const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
 const audio = new AudioSynth();
-<<<<<<< HEAD
-
-// Game State
-let state: 'EDIT' | 'RUN' | 'RESULT' = 'EDIT';
-let history: any[] = []; // Replay data
-let timeScale = 1.0;
-
-// Input State
-let isDragging = false;
-let dragTarget: string | null = null;
-let timing: 'EARLY' | 'LATE' = 'EARLY';
-
-// Init
-const simulator = new Simulator(12345, null); // Load Level here
-
-// UI Listeners
-document.getElementById('btn-run')?.addEventListener('click', startSimulation);
-document.getElementById('btn-timing')?.addEventListener('click', toggleTiming);
-canvas.addEventListener('mousedown', handlePointerDown);
-canvas.addEventListener('mousemove', handlePointerMove);
-canvas.addEventListener('mouseup', handlePointerUp);
-// touch events similarly...
-
-function startSimulation() {
-  if (state !== 'EDIT') return;
-  state = 'RUN';
-  history = [];
-  audio.play('kick');
-}
-
-function update() {
-  requestAnimationFrame(update);
-
-  if (state === 'RUN') {
-    // Fixed Timestep Loop
-    const steps = state === 'RUN' ? 1 : 0; 
-    // Slow Motion if Goal imminent
-    if (simulator.ball.pos.y > 600) timeScale = 0.3;
-    
-    simulator.update(1/60 * timeScale, [], timing, 'NORMAL'); // Pass real inputs
-    
-    // Save Snapshot
-    history.push(JSON.parse(JSON.stringify(simulator.entities)));
-
-    if (simulator.result) {
-      state = 'RESULT';
-      onResult(simulator.result);
-    }
-  } else if (state === 'RESULT') {
-    // Replay Loop (Simple rewind/loop)
-    // ...
-  }
-
-  renderer.draw(simulator.entities, [], simulator.time, simulator.result);
-}
-
-function onResult(res: string) {
-  const reason = {
-    'GOAL': 'PERFECT BREAK!',
-    'OFFSIDE': 'TOO EARLY!',
-    'INTERCEPT': 'BLOCKED!',
-    'GK_CATCH': 'SAVED!'
-  }[res];
-  
-  if (res === 'GOAL') {
-    audio.play('goal');
-    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-  } else {
-    audio.play('whistle');
-    if (navigator.vibrate) navigator.vibrate(200);
-  }
-
-  // Show UI Overlay
-  document.getElementById('result-title')!.innerText = res;
-  document.getElementById('result-reason')!.innerText = reason || '';
-  document.getElementById('screen-result')!.classList.remove('hidden');
-}
-
-update();
-=======
 const simulator = new Simulator(12345);
 
 let level: LevelData | null = null;
@@ -425,4 +338,3 @@ function loop() {
 }
 
 init();
->>>>>>> e2a4063 (Initial commit: Football Line Break (PWA demo))
