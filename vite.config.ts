@@ -21,7 +21,7 @@ export default defineConfig({
         theme_color: '#08131F',
         background_color: '#08131F',
         display: 'standalone',
-        orientation: 'any',
+        orientation: 'portrait',
 
         // /FLB/ 配下でもローカルでも壊れにくい
         scope: '.',
