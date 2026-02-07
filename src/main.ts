@@ -15,18 +15,20 @@ type UIState = {
   gameComplete: boolean;
   isRunning: boolean;
   dragOffset: Vec2;
+  lastAutoMsg: string | null; // 追加: 重複表示防止
 };
 
 const state: UIState = {
   levels: [],
   levelIndex: 0,
   receiver: 'P2',
-  tactic: 'MAN_MARK', // デフォルト戦術
+  tactic: 'MAN_MARK',
   dragging: null,
   cleared: false,
   gameComplete: false,
   isRunning: false,
   dragOffset: new Vec2(0, 0),
+  lastAutoMsg: null
 };
 
 const canvas = document.querySelector<HTMLCanvasElement>('#c');
@@ -80,11 +82,9 @@ function updateUI() {
     (btnP3 as HTMLButtonElement).disabled = disabled;
   }
   
-  // 戦術ボタン更新
   if (btnTactic) {
     btnTactic.textContent = `TACTIC: ${state.tactic.replace('_', ' ')}`;
     (btnTactic as HTMLButtonElement).disabled = disabled;
-    // 見た目を少し変える（ZONALなら黄色っぽくするなど）
     btnTactic.style.borderColor = state.tactic === 'MAN_MARK' ? '#00F2FF' : '#FFD700';
     btnTactic.style.color = state.tactic === 'MAN_MARK' ? '#fff' : '#FFD700';
   }
@@ -120,6 +120,7 @@ function initLevel() {
   state.cleared = false;
   state.gameComplete = false;
   state.isRunning = false;
+  state.lastAutoMsg = null; // リセット
   sim.initFromLevel(lv, state.receiver, state.tactic);
   updateUI();
 }
@@ -163,20 +164,16 @@ function handleResult(res: SimResult) {
   }
 }
 
-// Events
 if (btnP2) btnP2.onclick = () => { if(!state.isRunning) { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); } };
 if (btnP3) btnP3.onclick = () => { if(!state.isRunning) { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); } };
 if (btnReset) btnReset.onclick = () => initLevel();
-
-// 戦術切り替え
 if (btnTactic) btnTactic.onclick = () => {
   if (!state.isRunning) {
     state.tactic = state.tactic === 'MAN_MARK' ? 'ZONAL' : 'MAN_MARK';
-    sim.tactic = state.tactic; // シム側も更新
+    sim.tactic = state.tactic;
     updateUI();
   }
 };
-
 if (btnExec) btnExec.onclick = () => {
   if (state.gameComplete) {
     state.levelIndex = 0;
@@ -186,7 +183,6 @@ if (btnExec) btnExec.onclick = () => {
     return;
   }
   if (state.isRunning || state.cleared) return;
-
   state.isRunning = true;
   updateUI();
 };
@@ -195,6 +191,13 @@ function loop() {
   if (renderer && canvas) {
     if (state.isRunning) {
       sim.update(0.016);
+      
+      // ★自動判断メッセージの検知
+      if (sim.autoMessage && sim.autoMessage !== state.lastAutoMsg) {
+        showToast(sim.autoMessage, true);
+        state.lastAutoMsg = sim.autoMessage;
+      }
+
       if (sim.result) {
         handleResult(sim.result);
       }
@@ -205,6 +208,11 @@ function loop() {
     if (lv) {
       renderer.drawPitch(lv.goal);
       renderer.drawEntities(sim.entities, sim.ball);
+      
+      // ★予定ラインの描画（Simulatorが情報を持っていれば）
+      if (sim.nextActionLine) {
+        renderer.drawArrow(sim.nextActionLine.from, sim.nextActionLine.to);
+      }
 
       if (!state.isRunning && !state.gameComplete) {
         const p1 = sim.entities.find(e => e.id === 'P1');
@@ -230,14 +238,11 @@ function pickEntity(pos: Vec2): 'P1' | 'P2' | 'P3' | null {
 if (canvas && renderer) {
   canvas.addEventListener('pointerdown', e => {
     if (state.isRunning || state.gameComplete) return;
-    
     const p = renderer.getGamePosition(e.clientX, e.clientY);
     const id = pickEntity(p);
-    
     if (id) {
       state.dragging = id;
       canvas.setPointerCapture(e.pointerId);
-      
       const ent = sim.entities.find(en => en.id === id);
       if (ent) {
         state.dragOffset = ent.pos.sub(p);
@@ -248,7 +253,6 @@ if (canvas && renderer) {
 
   canvas.addEventListener('pointermove', e => {
     if (!state.dragging) return;
-    
     const p = renderer.getGamePosition(e.clientX, e.clientY);
     const ent = sim.entities.find(en => en.id === state.dragging);
     if (!ent) return;
