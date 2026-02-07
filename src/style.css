@@ -11,6 +11,7 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  /* スタジアムの夜のような深いグラデーション */
   background: radial-gradient(circle at center, #1e2a3a 0%, #000000 100%);
 }
 
@@ -21,6 +22,7 @@ html, body {
   overflow: hidden;
 }
 
+/* ゲーム画面（キャンバス） */
 canvas {
   display: block;
   position: absolute;
@@ -32,28 +34,30 @@ canvas {
   z-index: 0;
 }
 
+/* UIレイヤー */
 #ui-layer {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none; /* レイヤー全体はクリックを透過 */
+  pointer-events: none; /* コンテナ自体はクリックを透過 */
   z-index: 10;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* ★重要：コンテナ自体もクリックを透過させる */
-header, #top-controls, #bottom-controls {
-  pointer-events: none;
+/* 子要素（ボタンなど）は操作可能にする */
+#ui-layer > * {
+  pointer-events: none; /* 一旦無効化して、ボタンだけ有効にする */
 }
 
-/* ★重要：実際に操作したいボタンやバッジだけクリック有効にする */
+/* 操作したい要素だけ有効化 */
 button, .level-badge, #btn-reset {
   pointer-events: auto;
 }
 
+/* ヘッダー */
 header {
   position: absolute;
   top: 10px;
@@ -85,9 +89,10 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
 }
 
-/* パスボタン配置 */
+/* パスボタン配置（上部左右） */
 #top-controls {
   position: absolute;
   top: 60px;
@@ -110,6 +115,7 @@ header {
   backdrop-filter: blur(4px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
   transition: transform 0.1s;
+  cursor: pointer;
 }
 
 .pass-btn:active {
@@ -122,16 +128,47 @@ header {
   box-shadow: 0 0 15px rgba(0, 180, 255, 0.6);
 }
 
-/* キックオフボタン */
+/* 戦術ボタン配置（パスボタンの下、中央） */
+#tactic-controls {
+  position: absolute;
+  top: 110px;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+#btn-tactic {
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid #00F2FF;
+  color: #00F2FF;
+  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: bold;
+  backdrop-filter: blur(2px);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#btn-tactic:active {
+  transform: scale(0.95);
+}
+
+/* キックオフボタン（下部中央） */
 #bottom-controls {
   position: absolute;
   bottom: 40px;
   width: 100%;
   display: flex;
   justify-content: center;
+  pointer-events: none;
 }
 
 #btn-exec {
+  pointer-events: auto;
   background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
   border: none;
   font-size: 20px;
@@ -141,12 +178,21 @@ header {
   box-shadow: 0 5px 20px rgba(46, 204, 113, 0.4);
   font-weight: 800;
   letter-spacing: 1px;
+  cursor: pointer;
 }
 
 #btn-exec:active {
   transform: scale(0.95);
 }
 
+#btn-exec:disabled {
+  background: #555;
+  box-shadow: none;
+  color: #aaa;
+  cursor: not-allowed;
+}
+
+/* 次へボタン */
 #btn-next {
   position: absolute;
   bottom: 120px;
@@ -161,9 +207,11 @@ header {
   box-shadow: 0 5px 20px rgba(241, 196, 15, 0.5);
   font-weight: bold;
   z-index: 30;
-  pointer-events: auto; /* これも忘れずに */
+  pointer-events: auto;
+  cursor: pointer;
 }
 
+/* 通知トースト */
 .toast {
   position: absolute;
   top: 40%;
@@ -183,3 +231,8 @@ header {
 }
 
 .hidden { display: none !important; }
+
+@keyframes popIn {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
