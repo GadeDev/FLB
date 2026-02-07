@@ -1,381 +1,228 @@
 import './style.css';
-import { C } from './core/Constants';
-import { Vec2 } from './core/Vector2';
-import { AudioSynth } from './core/AudioSynth';
 import { Renderer } from './game/Renderer';
-import { Simulator, type SimResult } from './game/Simulator';
-import { loadLevels, Placement } from './game/LevelLoader';
-import type { EditStateSnapshot, LevelData } from './game/Types';
+import { Simulator } from './game/Simulator';
+import { Vec2 } from './core/Vector2';
+import type { LevelData, Receiver, Tactic } from './game/Types';
+import { loadLevels } from './game/LevelLoader';
 
-type Mode = 'MOVE' | 'PASS';
-type State = 'EDIT' | 'RUN';
+const PITCH_W = 360;
+const PITCH_H = 720;
 
-const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
+type UIState = {
+  levels: LevelData[];
+  levelIndex: number;
+  receiver: Receiver;
+  tactic: Tactic;
+  dragging: 'P1' | 'P2' | 'P3' | null;
+  cleared: boolean;
+  reason: 'GOAL' | 'INTERCEPT' | 'OUT' | 'NONE';
+  autoNextAt: number | null;
+};
+
+const state: UIState = {
+  levels: [],
+  levelIndex: 0,
+  receiver: 'P2',
+  tactic: 'PASS_TO_RECEIVER',
+  dragging: null,
+  cleared: false,
+  reason: 'NONE',
+  autoNextAt: null
+};
+
+const app = document.querySelector<HTMLDivElement>('#app')!;
+app.innerHTML = `
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">LINE BREAK LAB</div>
+      <div class="controls">
+        <button id="prev">Prev</button>
+        <div id="levelName" class="levelName">-</div>
+        <button id="next">Next</button>
+        <button id="reset">Reset</button>
+      </div>
+    </div>
+
+    <div class="canvasWrap">
+      <canvas id="c" width="${PITCH_W}" height="${PITCH_H}"></canvas>
+    </div>
+
+    <div class="bottom">
+      <div class="row">
+        <div class="label">Receiver</div>
+        <button class="chip" id="recvP2">P2</button>
+        <button class="chip" id="recvP3">P3</button>
+      </div>
+
+      <div class="row">
+        <div class="label">Play</div>
+        <button id="simulate" class="primary">Simulate</button>
+      </div>
+
+      <div id="msg" class="msg"></div>
+      <div class="hint">Drag P1/P2/P3 to reposition. Receiver = pass target.</div>
+    </div>
+  </div>
+`;
+
+const canvas = document.querySelector<HTMLCanvasElement>('#c')!;
 const renderer = new Renderer(canvas);
-const audio = new AudioSynth();
-const simulator = new Simulator(12345);
+const sim = new Simulator();
 
-let level: LevelData | null = null;
-let levels: LevelData[] = [];
-let levelIndex = 0;
+const elPrev = document.querySelector<HTMLButtonElement>('#prev')!;
+const elNext = document.querySelector<HTMLButtonElement>('#next')!;
+const elReset = document.querySelector<HTMLButtonElement>('#reset')!;
+const elSim = document.querySelector<HTMLButtonElement>('#simulate')!;
+const elName = document.querySelector<HTMLDivElement>('#levelName')!;
+const elMsg = document.querySelector<HTMLDivElement>('#msg')!;
+const elP2 = document.querySelector<HTMLButtonElement>('#recvP2')!;
+const elP3 = document.querySelector<HTMLButtonElement>('#recvP3')!;
 
-let autoNextTimer: number | null = null;
-
-let state: State = 'EDIT';
-let mode: Mode = 'MOVE';
-let timing: 'EARLY' | 'LATE' = 'EARLY';
-let receiver: 'P2' | 'P3' = 'P2';
-
-let dragId: 'P1' | 'P2' | 'P3' | null = null;
-let passDrag = false;
-
-let history: EditStateSnapshot[] = [];
-let initialSnapshot: EditStateSnapshot | null = null;
-
-const elMode = document.getElementById('btn-mode') as HTMLButtonElement;
-const elUndo = document.getElementById('btn-undo') as HTMLButtonElement;
-const elReset = document.getElementById('btn-reset') as HTMLButtonElement;
-const elTiming = document.getElementById('btn-timing') as HTMLButtonElement;
-const elRun = document.getElementById('btn-run') as HTMLButtonElement;
-const elRetry = document.getElementById('btn-retry') as HTMLButtonElement;
-const elResult = document.getElementById('screen-result') as HTMLDivElement;
-const elResultTitle = document.getElementById('result-title') as HTMLHeadingElement;
-const elResultReason = document.getElementById('result-reason') as HTMLParagraphElement;
-const elTactic = document.getElementById('tactic-tag') as HTMLDivElement;
-const elLevelBadge = document.getElementById('level-badge') as HTMLDivElement;
-const elHint = document.getElementById('hint-text') as HTMLSpanElement;
-
-function clearAutoNext() {
-  if (autoNextTimer !== null) {
-    window.clearTimeout(autoNextTimer);
-    autoNextTimer = null;
-  }
+function clamp(v: number, a: number, b: number) {
+  return Math.max(a, Math.min(b, v));
 }
 
-function snap(): EditStateSnapshot {
-  const ents = simulator.entities;
-  const p1 = ents.find(e => e.id === 'P1')!.pos;
-  const p2 = ents.find(e => e.id === 'P2')!.pos;
-  const p3 = ents.find(e => e.id === 'P3')!.pos;
-  return {
-    p1: new Vec2(p1.x, p1.y),
-    p2: new Vec2(p2.x, p2.y),
-    p3: new Vec2(p3.x, p3.y),
-    receiver
-  };
+function getLevel(): LevelData {
+  return state.levels[state.levelIndex];
 }
 
-function restore(s: EditStateSnapshot) {
-  receiver = s.receiver;
-  const p1 = simulator.entities.find(e => e.id === 'P1')!;
-  const p2 = simulator.entities.find(e => e.id === 'P2')!;
-  const p3 = simulator.entities.find(e => e.id === 'P3')!;
-  p1.pos = new Vec2(s.p1.x, s.p1.y);
-  p2.pos = new Vec2(s.p2.x, s.p2.y);
-  p3.pos = new Vec2(s.p3.x, s.p3.y);
-  simulator.setEdit(receiver);
-  updateHint();
+function applyReceiverUI() {
+  elP2.classList.toggle('active', state.receiver === 'P2');
+  elP3.classList.toggle('active', state.receiver === 'P3');
 }
 
-function pushHistory() {
-  if (history.length === 0) history.push(snap());
-  else {
-    const last = history[history.length - 1];
-    const cur = snap();
-    const same =
-      Math.abs(last.p1.x - cur.p1.x) < 0.01 && Math.abs(last.p1.y - cur.p1.y) < 0.01 &&
-      Math.abs(last.p2.x - cur.p2.x) < 0.01 && Math.abs(last.p2.y - cur.p2.y) < 0.01 &&
-      Math.abs(last.p3.x - cur.p3.x) < 0.01 && Math.abs(last.p3.y - cur.p3.y) < 0.01 &&
-      last.receiver === cur.receiver;
-    if (!same) history.push(cur);
-  }
+function setMsg(text: string) {
+  elMsg.textContent = text;
 }
 
-function updateHint() {
-  if (state === 'RUN') {
-    elHint.textContent = 'Simulation running…';
-    return;
-  }
-  if (mode === 'MOVE') {
-    elHint.textContent = 'MOVE mode: drag P1 / P2 / P3 to position.';
-  } else {
-    elHint.textContent = 'PASS mode: drag from P1 to P2/P3 to set receiver.';
-  }
+function initLevel() {
+  const lv = getLevel();
+  elName.textContent = `${lv.id}: ${lv.name}`;
+  state.cleared = false;
+  state.reason = 'NONE';
+  state.autoNextAt = null;
+
+  sim.initFromLevel(lv, state.receiver, state.tactic);
+  applyReceiverUI();
+  setMsg('');
 }
 
-function setMode(m: Mode) {
-  mode = m;
-  elMode.textContent = m;
-  updateHint();
-}
-
-function setTiming(t: 'EARLY' | 'LATE') {
-  timing = t;
-  elTiming.textContent = t;
-  simulator.setTiming(timing);
-}
-
-function updateBadges() {
-  if (!level) return;
-  const suffix = levels.length >= 2 ? `  ${levelIndex + 1}/${levels.length}` : '';
-  elLevelBadge.textContent = `${level.label}${suffix}`;
-  elTactic.textContent = `TACTIC: ${level.tactic.replace('_', ' ')}`;
-}
-
-function makeDefaultSnapshot(): EditStateSnapshot {
-  const p1 = Placement.clampToRect(new Vec2(500, 140), Placement.p1Rect);
-  const p2 = Placement.clampToRect(new Vec2(460, 330), Placement.p23Rect);
-  const p3 = Placement.clampToRect(new Vec2(540, 330), Placement.p23Rect);
-  return { p1, p2, p3, receiver: 'P2' };
-}
-
-function loadLevelAt(index: number) {
-  if (levels.length === 0) return;
-  clearAutoNext();
-
-  levelIndex = ((index % levels.length) + levels.length) % levels.length;
-  level = levels[levelIndex];
-
-  history = [];
-  receiver = 'P2';
-  timing = 'EARLY';
-  initialSnapshot = makeDefaultSnapshot();
-
-  hideResult();
-  simulator.reset(level, { p1: initialSnapshot.p1, p2: initialSnapshot.p2, p3: initialSnapshot.p3 }, receiver);
-  simulator.setTiming(timing);
-
-  state = 'EDIT';
-  setMode('MOVE');
-  setTiming('EARLY');
-  updateBadges();
-  updateHint();
+function prevLevel() {
+  state.levelIndex = (state.levelIndex - 1 + state.levels.length) % state.levels.length;
+  initLevel();
 }
 
 function nextLevel() {
-  if (levels.length === 0) return;
-  loadLevelAt(levelIndex + 1);
+  state.levelIndex = (state.levelIndex + 1) % state.levels.length;
+  initLevel();
 }
 
-function findAllyAt(pos: Vec2): 'P1' | 'P2' | 'P3' | null {
-  const ents = simulator.entities.filter(e => e.type === 'ALLY');
-  let best: { id: any; d: number } | null = null;
-  for (const e of ents) {
-    const d = e.pos.dist(pos);
-    if (d <= C.PLAYER_R + 12) {
-      if (!best || d < best.d) best = { id: e.id, d };
-    }
-  }
-  return best ? (best.id as any) : null;
-}
+elPrev.onclick = () => prevLevel();
+elNext.onclick = () => nextLevel();
+elReset.onclick = () => initLevel();
 
-function applyConstraints() {
-  const p1 = simulator.entities.find(e => e.id === 'P1')!;
-  const p2 = simulator.entities.find(e => e.id === 'P2')!;
-  const p3 = simulator.entities.find(e => e.id === 'P3')!;
-  p1.pos = Placement.clampToRect(p1.pos, Placement.p1Rect);
-  p2.pos = Placement.clampToRect(p2.pos, Placement.p23Rect);
-  p3.pos = Placement.clampToRect(p3.pos, Placement.p23Rect);
+elP2.onclick = () => {
+  state.receiver = 'P2';
+  sim.receiver = 'P2';
+  applyReceiverUI();
+};
+elP3.onclick = () => {
+  state.receiver = 'P3';
+  sim.receiver = 'P3';
+  applyReceiverUI();
+};
 
-  const players = [p1, p2, p3];
-  for (let iter = 0; iter < 3; iter++) {
-    for (let i = 0; i < players.length; i++) {
-      for (let j = i + 1; j < players.length; j++) {
-        const a = players[i];
-        const b = players[j];
-        const delta = b.pos.sub(a.pos);
-        const dist = delta.len();
-        const min = C.PLAYER_R * 2;
-        if (dist > 0 && dist < min) {
-          const push = delta.norm().mul((min - dist) * 0.5);
-          a.pos = a.pos.add(push.mul(-1));
-          b.pos = b.pos.add(push);
-        }
-      }
-    }
-  }
+elSim.onclick = () => {
+  const res = sim.run();
+  state.cleared = res.cleared;
+  state.reason = res.reason;
 
-  p1.pos = Placement.clampToRect(p1.pos, Placement.p1Rect);
-  p2.pos = Placement.clampToRect(p2.pos, Placement.p23Rect);
-  p3.pos = Placement.clampToRect(p3.pos, Placement.p23Rect);
-}
-
-function onPointerDown(ev: PointerEvent) {
-  if (state !== 'EDIT') return;
-  const pos = renderer.clientToLogic(ev.clientX, ev.clientY);
-
-  if (mode === 'MOVE') {
-    const id = findAllyAt(pos);
-    if (id) {
-      pushHistory();
-      dragId = id;
-      canvas.setPointerCapture(ev.pointerId);
-      audio.play('tap');
-    }
+  if (res.cleared) {
+    setMsg('CLEARED! Auto next...');
+    // 方式A：クリア時に自動で次へ（2秒後）
+    state.autoNextAt = performance.now() + 2000;
   } else {
-    const id = findAllyAt(pos);
-    if (id === 'P1') {
-      pushHistory();
-      passDrag = true;
-      canvas.setPointerCapture(ev.pointerId);
-      audio.play('tap');
-    } else if (id === 'P2' || id === 'P3') {
-      pushHistory();
-      receiver = id;
-      simulator.setEdit(receiver);
-      audio.play('tap');
-      updateHint();
-    }
+    const map: Record<typeof res.reason, string> = {
+      GOAL: 'GOAL',
+      INTERCEPT: 'INTERCEPTED',
+      OUT: 'OUT',
+      NONE: '...'
+    };
+    setMsg(map[res.reason]);
   }
-}
+};
 
-function onPointerMove(ev: PointerEvent) {
-  if (state !== 'EDIT') return;
-  const pos = renderer.clientToLogic(ev.clientX, ev.clientY);
-
-  if (dragId) {
-    const e = simulator.entities.find(x => x.id === dragId)!;
-    e.pos = pos;
-    applyConstraints();
+// ドラッグで選手配置
+function pickEntity(x: number, y: number): 'P1' | 'P2' | 'P3' | null {
+  const pos = new Vec2(x, y);
+  for (const id of ['P1', 'P2', 'P3'] as const) {
+    const e = sim.entities.find(en => en.id === id);
+    if (!e) continue;
+    if (pos.dist(e.pos) <= e.radius + 8) return id;
   }
+  return null;
 }
 
-function onPointerUp(ev: PointerEvent) {
-  if (state !== 'EDIT') return;
-  const pos = renderer.clientToLogic(ev.clientX, ev.clientY);
+function canvasToLocal(e: PointerEvent): Vec2 {
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (PITCH_W / rect.width);
+  const y = (e.clientY - rect.top) * (PITCH_H / rect.height);
+  return new Vec2(x, y);
+}
 
-  if (dragId) {
-    dragId = null;
-    applyConstraints();
-    simulator.setEdit(receiver);
-    return;
+canvas.addEventListener('pointerdown', e => {
+  const p = canvasToLocal(e);
+  const id = pickEntity(p.x, p.y);
+  if (id) {
+    state.dragging = id;
+    canvas.setPointerCapture(e.pointerId);
   }
+});
 
-  if (passDrag) {
-    passDrag = false;
-    const target = findAllyAt(pos);
-    if (target === 'P2' || target === 'P3') {
-      receiver = target;
-      simulator.setEdit(receiver);
-      audio.play('draw');
-    }
-    updateHint();
-  }
-}
+canvas.addEventListener('pointermove', e => {
+  if (!state.dragging) return;
+  const p = canvasToLocal(e);
+  const ent = sim.entities.find(en => en.id === state.dragging);
+  if (!ent) return;
+  ent.pos = new Vec2(clamp(p.x, 10, PITCH_W - 10), clamp(p.y, 10, PITCH_H - 10));
+  if (ent.id === 'P1') sim.ball = ent.pos.clone();
+});
 
-function startRun() {
-  if (!level) return;
-  if (state !== 'EDIT') return;
-
-  clearAutoNext();
-  hideResult();
-
-  applyConstraints();
-  simulator.setEdit(receiver);
-  simulator.setTiming(timing);
-  simulator.startRun();
-  state = 'RUN';
-  updateHint();
-  audio.play('kick');
-}
-
-function showResult(res: SimResult) {
-  const reason: Record<SimResult, string> = {
-    GOAL: 'PERFECT BREAK!',
-    OFFSIDE: 'TOO EARLY. You were beyond the line.',
-    INTERCEPT: 'BLOCKED. Defender intercepted.',
-    GK_CATCH: 'SAVED. Keeper got it.',
-    MISS: 'MISSED. Hit outside the goal frame.'
-  };
-
-  elResultTitle.textContent = res;
-  elResultReason.textContent = reason[res];
-  elResult.classList.remove('hidden');
-
-  if (res === 'GOAL') {
-    elRetry.textContent = 'NEXT';
-    elRetry.onclick = () => nextLevel();
-    clearAutoNext();
-    autoNextTimer = window.setTimeout(() => {
-      nextLevel();
-    }, 900);
-  } else {
-    elRetry.textContent = 'RETRY';
-    elRetry.onclick = () => retry();
-  }
-
-  if (res === 'GOAL') {
-    audio.play('goal');
-    if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
-  } else {
-    audio.play('whistle');
-    if (navigator.vibrate) navigator.vibrate(120);
-  }
-}
-
-function hideResult() {
-  elResult.classList.add('hidden');
-}
-
-function retry() {
-  if (!level || !initialSnapshot) return;
-  clearAutoNext();
-  hideResult();
-  const s = snap();
-  simulator.reset(level, { p1: s.p1, p2: s.p2, p3: s.p3 }, s.receiver);
-  state = 'EDIT';
-  updateBadges();
-  updateHint();
-}
-
-function undo() {
-  if (!level) return;
-  if (state !== 'EDIT') return;
-  if (history.length === 0) return;
-  const s = history.pop()!;
-  simulator.reset(level, { p1: s.p1, p2: s.p2, p3: s.p3 }, s.receiver);
-  restore(s);
-}
-
-function resetAll() {
-  if (!level || !initialSnapshot) return;
-  if (state !== 'EDIT') return;
-  history = [];
-  simulator.reset(level, { p1: initialSnapshot.p1, p2: initialSnapshot.p2, p3: initialSnapshot.p3 }, initialSnapshot.receiver);
-  restore(initialSnapshot);
-}
-
-async function init() {
-  levels = await loadLevels();
-  if (levels.length === 0) levels = [];
-  loadLevelAt(0);
-
-  elMode.addEventListener('click', () => setMode(mode === 'MOVE' ? 'PASS' : 'MOVE'));
-  elUndo.addEventListener('click', undo);
-  elReset.addEventListener('click', resetAll);
-  elTiming.addEventListener('click', () => setTiming(timing === 'EARLY' ? 'LATE' : 'EARLY'));
-  elRun.addEventListener('click', startRun);
-
-  canvas.addEventListener('pointerdown', onPointerDown);
-  canvas.addEventListener('pointermove', onPointerMove);
-  canvas.addEventListener('pointerup', onPointerUp);
-  canvas.addEventListener('pointercancel', () => { dragId = null; passDrag = false; });
-
-  loop();
-}
+canvas.addEventListener('pointerup', e => {
+  state.dragging = null;
+  try {
+    canvas.releasePointerCapture(e.pointerId);
+  } catch {}
+});
 
 function loop() {
-  requestAnimationFrame(loop);
+  renderer.clear();
 
-  if (state === 'RUN') {
-    simulator.update(C.DT);
-    if (simulator.result) {
-      state = 'EDIT';
-      showResult(simulator.result);
-    }
+  const lv = getLevel();
+  renderer.drawPitch(lv.goal);
+  renderer.drawEntities(sim.entities, sim.ball);
+
+  const p1 = sim.entities.find(e => e.id === 'P1')!;
+  const recv = sim.entities.find(e => e.id === state.receiver)!;
+  renderer.drawArrow(p1.pos, recv.pos);
+
+  // HUD
+  const hud = `${lv.id}/${state.levels.length}  Receiver:${state.receiver}`;
+  renderer.drawHud(hud);
+
+  // Auto next
+  if (state.autoNextAt && performance.now() >= state.autoNextAt) {
+    state.autoNextAt = null;
+    nextLevel();
   }
 
-  renderer.draw(simulator.entities, simulator.ball, receiver, mode, timing, simulator.result);
+  requestAnimationFrame(loop);
 }
 
-init();
+async function boot() {
+  state.levels = await loadLevels();
+  if (!state.levels.length) throw new Error('No levels');
+  initLevel();
+  loop();
+}
+boot();
