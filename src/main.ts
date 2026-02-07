@@ -10,11 +10,11 @@ type UIState = {
   levelIndex: number;
   receiver: Receiver;
   tactic: Tactic;
-  dragging: 'P1' | 'P2' | 'P3' | null;
+  dragging: 'P2' | 'P3' | null; // P1を削除
   cleared: boolean;
   gameComplete: boolean;
   isRunning: boolean;
-  dragOffset: Vec2; // ドラッグ時の指ズレ補正用
+  dragOffset: Vec2;
 };
 
 const state: UIState = {
@@ -200,12 +200,12 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// エンティティ選択（当たり判定を大きくして操作性向上）
-function pickEntity(pos: Vec2): 'P1' | 'P2' | 'P3' | null {
-  for (const id of ['P1', 'P2', 'P3'] as const) {
+// ★修正：P1を操作対象から除外（P2, P3のみ）
+function pickEntity(pos: Vec2): 'P2' | 'P3' | null {
+  // P1を除外
+  for (const id of ['P2', 'P3'] as const) {
     const e = sim.entities.find(en => en.id === id);
     if (!e) continue;
-    // 半径+30px (約46px) まで許容して掴みやすくする
     if (pos.dist(e.pos) <= e.radius + 30) return id;
   }
   return null;
@@ -215,7 +215,6 @@ if (canvas && renderer) {
   canvas.addEventListener('pointerdown', e => {
     if (state.isRunning || state.gameComplete) return;
     
-    // ★修正：Renderer経由で正確なゲーム内座標を取得
     const p = renderer.getGamePosition(e.clientX, e.clientY);
     const id = pickEntity(p);
     
@@ -223,12 +222,10 @@ if (canvas && renderer) {
       state.dragging = id;
       canvas.setPointerCapture(e.pointerId);
       
-      // 掴んだ位置と中心のズレを保存（カクつき防止）
       const ent = sim.entities.find(en => en.id === id);
       if (ent) {
         state.dragOffset = ent.pos.sub(p);
-        // 指で隠れないように少し上にずらすオフセットを加算しても良い
-         state.dragOffset.y -= 40; 
+        state.dragOffset.y -= 40; 
       }
     }
   });
@@ -236,21 +233,18 @@ if (canvas && renderer) {
   canvas.addEventListener('pointermove', e => {
     if (!state.dragging) return;
     
-    // ★修正：Renderer経由で座標変換
     const p = renderer.getGamePosition(e.clientX, e.clientY);
     const ent = sim.entities.find(en => en.id === state.dragging);
     if (!ent) return;
     
-    // ズレを適用して移動
     const targetPos = p.add(state.dragOffset);
 
-    // 画面外に出ないようにクランプ
+    // 画面外クランプ
     const margin = 20;
     const x = Math.max(margin, Math.min(PITCH_W - margin, targetPos.x));
     const y = Math.max(margin, Math.min(PITCH_H - margin, targetPos.y));
     ent.pos = new Vec2(x, y);
-
-    if (ent.id === 'P1') sim.ball = ent.pos.clone();
+    // P1連動処理は削除
   });
 
   canvas.addEventListener('pointerup', e => {
