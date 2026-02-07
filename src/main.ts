@@ -34,7 +34,6 @@ const canvas = document.querySelector<HTMLCanvasElement>('#c');
 const renderer = canvas ? new Renderer(canvas) : null;
 const sim = new Simulator();
 
-// 画面リサイズ呼び出し
 if (renderer) {
   renderer.resize();
   window.addEventListener('resize', () => renderer.resize());
@@ -144,13 +143,15 @@ function handleResult(res: SimResult) {
     showToast(msgs[res!] || 'MISS', false);
     
     setTimeout(() => {
-      sim.initFromLevel(getLevel()!, state.receiver, state.tactic);
-      updateUI();
+      const lv = getLevel();
+      if(lv) {
+        sim.initFromLevel(lv, state.receiver, state.tactic);
+        updateUI();
+      }
     }, 1000);
   }
 }
 
-// Events
 if (btnP2) btnP2.onclick = () => { if(!state.isRunning) { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); } };
 if (btnP3) btnP3.onclick = () => { if(!state.isRunning) { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); } };
 if (btnReset) btnReset.onclick = () => initLevel();
@@ -169,7 +170,6 @@ if (btnExec) btnExec.onclick = () => {
   updateUI();
 };
 
-// Loop
 function loop() {
   if (renderer && canvas) {
     if (state.isRunning) {
@@ -197,7 +197,6 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// Drag
 function canvasToLocal(e: PointerEvent): Vec2 {
   if (!canvas) return new Vec2(0,0);
   const rect = canvas.getBoundingClientRect();
@@ -245,7 +244,6 @@ if (canvas) {
   });
 }
 
-// Boot
 async function boot() {
   state.levels = await loadLevels();
   if (state.levels.length > 0) {
