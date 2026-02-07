@@ -1,9 +1,7 @@
 import { Vec2 } from '../core/Vector2';
 
 export type Receiver = 'P2' | 'P3';
-export type Mode = 'EDIT' | 'SIM' | 'RESULT';
 export type Tactic = 'NORMAL' | 'PASS_TO_RECEIVER';
-
 export type EntityType = 'P1' | 'P2' | 'P3' | 'DEF' | 'BALL';
 
 export interface Entity {
