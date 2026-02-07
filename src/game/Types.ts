@@ -23,10 +23,3 @@ export interface LevelData {
   defenders: Array<{ x: number; y: number; r?: number }>;
   goal: { x: number; y: number; w: number; h: number };
 }
-
-export interface SimStateSnapshot {
-  entities: Entity[];
-  ball: Vec2;
-  receiver: Receiver;
-  tactic: Tactic;
-}
