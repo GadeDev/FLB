@@ -21,7 +21,7 @@ const state: UIState = {
   levels: [],
   levelIndex: 0,
   receiver: 'P2',
-  tactic: 'PASS_TO_RECEIVER',
+  tactic: 'MAN_MARK', // デフォルト戦術
   dragging: null,
   cleared: false,
   gameComplete: false,
@@ -42,6 +42,7 @@ const elLevelDisplay = document.getElementById('level-display');
 const btnReset = document.getElementById('btn-reset');
 const btnP2 = document.getElementById('btn-p2');
 const btnP3 = document.getElementById('btn-p3');
+const btnTactic = document.getElementById('btn-tactic');
 const btnExec = document.getElementById('btn-exec');
 const btnNext = document.getElementById('btn-next');
 const msgToast = document.getElementById('msg-toast');
@@ -77,6 +78,15 @@ function updateUI() {
   if (btnP3) {
     btnP3.classList.toggle('active', state.receiver === 'P3');
     (btnP3 as HTMLButtonElement).disabled = disabled;
+  }
+  
+  // 戦術ボタン更新
+  if (btnTactic) {
+    btnTactic.textContent = `TACTIC: ${state.tactic.replace('_', ' ')}`;
+    (btnTactic as HTMLButtonElement).disabled = disabled;
+    // 見た目を少し変える（ZONALなら黄色っぽくするなど）
+    btnTactic.style.borderColor = state.tactic === 'MAN_MARK' ? '#00F2FF' : '#FFD700';
+    btnTactic.style.color = state.tactic === 'MAN_MARK' ? '#fff' : '#FFD700';
   }
 
   if (btnExec) {
@@ -153,9 +163,19 @@ function handleResult(res: SimResult) {
   }
 }
 
+// Events
 if (btnP2) btnP2.onclick = () => { if(!state.isRunning) { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); } };
 if (btnP3) btnP3.onclick = () => { if(!state.isRunning) { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); } };
 if (btnReset) btnReset.onclick = () => initLevel();
+
+// 戦術切り替え
+if (btnTactic) btnTactic.onclick = () => {
+  if (!state.isRunning) {
+    state.tactic = state.tactic === 'MAN_MARK' ? 'ZONAL' : 'MAN_MARK';
+    sim.tactic = state.tactic; // シム側も更新
+    updateUI();
+  }
+};
 
 if (btnExec) btnExec.onclick = () => {
   if (state.gameComplete) {
@@ -198,13 +218,10 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// ★操作ロジック
 function pickEntity(pos: Vec2): 'P1' | 'P2' | 'P3' | null {
-  // P1, P2, P3 すべて操作対象
   for (const id of ['P1', 'P2', 'P3'] as const) {
     const e = sim.entities.find(en => en.id === id);
     if (!e) continue;
-    // 半径+30px (約46px) まで許容して掴みやすくする
     if (pos.dist(e.pos) <= e.radius + 30) return id;
   }
   return null;
@@ -214,7 +231,6 @@ if (canvas && renderer) {
   canvas.addEventListener('pointerdown', e => {
     if (state.isRunning || state.gameComplete) return;
     
-    // 正確なゲーム内座標を取得
     const p = renderer.getGamePosition(e.clientX, e.clientY);
     const id = pickEntity(p);
     
@@ -225,7 +241,7 @@ if (canvas && renderer) {
       const ent = sim.entities.find(en => en.id === id);
       if (ent) {
         state.dragOffset = ent.pos.sub(p);
-        state.dragOffset.y -= 40; // 指で隠れないように少し上にずらす
+        state.dragOffset.y -= 40; 
       }
     }
   });
@@ -238,8 +254,6 @@ if (canvas && renderer) {
     if (!ent) return;
     
     const targetPos = p.add(state.dragOffset);
-
-    // 画面外に出ないようにクランプ
     const margin = 20;
     const x = Math.max(margin, Math.min(PITCH_W - margin, targetPos.x));
     const y = Math.max(margin, Math.min(PITCH_H - margin, targetPos.y));
