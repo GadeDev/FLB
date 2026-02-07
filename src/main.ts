@@ -60,6 +60,7 @@ function updateUI() {
     if (btnExec) {
       btnExec.textContent = "RESTART";
       btnExec.style.display = 'block';
+      (btnExec as HTMLButtonElement).disabled = false;
     }
     if (btnNext) btnNext.classList.add('hidden');
     return;
@@ -81,6 +82,7 @@ function updateUI() {
 
   if (btnExec) {
     btnExec.textContent = "EXECUTE";
+    // クリア演出中はボタンを隠す
     btnExec.style.display = state.cleared ? 'none' : 'block';
     (btnExec as HTMLButtonElement).disabled = disabled;
   }
@@ -128,10 +130,11 @@ function handleResult(res: SimResult) {
       updateUI();
     } else {
       showToast("GOAL!", true);
+      // 1秒後に次のレベルへ
       setTimeout(() => {
         state.levelIndex++;
         initLevel();
-      }, 900);
+      }, 1000);
     }
   } else {
     const msgs: Record<string, string> = {
@@ -142,6 +145,7 @@ function handleResult(res: SimResult) {
     };
     showToast(msgs[res!] || 'MISS', false);
     
+    // 失敗時は1秒後にリセット
     setTimeout(() => {
       const lv = getLevel();
       if(lv) {
@@ -231,6 +235,10 @@ if (canvas) {
     const ent = sim.entities.find(en => en.id === state.dragging);
     if (!ent) return;
     
+    // 味方同士のコリジョン（簡易：単純に配置制限）
+    // 本来は衝突解決が必要ですが、配置フェーズでの簡易制限として
+    // 他の味方との距離チェックを入れると良いですが、
+    // ここではまずビルドを通すことを優先し、シンプルなクランプのみにします。
     const margin = 20;
     const x = Math.max(margin, Math.min(PITCH_W - margin, p.x));
     const y = Math.max(margin, Math.min(PITCH_H - margin, p.y));
