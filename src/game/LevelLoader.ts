@@ -4,20 +4,15 @@ export async function loadLevels(): Promise<LevelData[]> {
   try {
     const env = (import.meta as any).env;
     const base = env?.BASE_URL || './';
+    const url = `${base}levels.json?t=${Date.now()}`; // キャッシュ無効化
     
-    // キャッシュ対策
-    const url = `${base}levels.json?t=${Date.now()}`;
-    
-    console.log(`Loading levels from: ${url}`);
-
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Level load failed: ${res.status}`);
     const levels = await res.json();
     
-    // 座標調整
     return levels.map((l: any) => ({
       ...l,
-      // ★修正: P1の位置を上に上げて(450)、下部のボタン被りを防ぐ
+      // P1を少し上に配置(450)してボタン被りを防ぐ
       p1: { x: l.p1.x, y: Math.min(l.p1.y, 450) },
       p2: { x: l.p2.x, y: l.p2.y * 0.85 },
       p3: { x: l.p3.x, y: l.p3.y * 0.85 },
@@ -28,10 +23,9 @@ export async function loadLevels(): Promise<LevelData[]> {
 
   } catch (e) {
     console.error("Using fallback levels:", e);
-    // 予備データ
     return [{
       id: 'L1', name: 'Fallback',
-      p1: {x:180,y:450}, // ここも修正
+      p1: {x:180,y:450}, // ここも450に
       p2:{x:100,y:300}, p3:{x:260,y:300},
       gk: {x:180,y:30}, 
       defenders:[{x:180,y:200}], 
