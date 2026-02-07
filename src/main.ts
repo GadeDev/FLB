@@ -5,11 +5,9 @@ import { Vec2 } from './core/Vector2';
 import type { LevelData, Receiver, Tactic } from './game/Types';
 import { loadLevels } from './game/LevelLoader';
 
-// Constants
 const PITCH_W = 360;
 const PITCH_H = 720;
 
-// State
 type UIState = {
   levels: LevelData[];
   levelIndex: number;
@@ -32,12 +30,11 @@ const state: UIState = {
   isRunning: false,
 };
 
-// --- DOM Elements ---
 const canvas = document.querySelector<HTMLCanvasElement>('#c');
 const renderer = canvas ? new Renderer(canvas) : null;
 const sim = new Simulator();
 
-// ★ここがPC表示修正のカギです★
+// 画面リサイズ呼び出し
 if (renderer) {
   renderer.resize();
   window.addEventListener('resize', () => renderer.resize());
@@ -51,7 +48,6 @@ const btnExec = document.getElementById('btn-exec');
 const btnNext = document.getElementById('btn-next');
 const msgToast = document.getElementById('msg-toast');
 
-// --- Functions ---
 function getLevel(): LevelData | null {
   return state.levels[state.levelIndex] || null;
 }
@@ -154,7 +150,7 @@ function handleResult(res: SimResult) {
   }
 }
 
-// --- Events ---
+// Events
 if (btnP2) btnP2.onclick = () => { if(!state.isRunning) { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); } };
 if (btnP3) btnP3.onclick = () => { if(!state.isRunning) { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); } };
 if (btnReset) btnReset.onclick = () => initLevel();
@@ -173,7 +169,7 @@ if (btnExec) btnExec.onclick = () => {
   updateUI();
 };
 
-// --- Loop ---
+// Loop
 function loop() {
   if (renderer && canvas) {
     if (state.isRunning) {
@@ -201,7 +197,7 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// --- Drag ---
+// Drag
 function canvasToLocal(e: PointerEvent): Vec2 {
   if (!canvas) return new Vec2(0,0);
   const rect = canvas.getBoundingClientRect();
@@ -249,7 +245,7 @@ if (canvas) {
   });
 }
 
-// --- Boot ---
+// Boot
 async function boot() {
   state.levels = await loadLevels();
   if (state.levels.length > 0) {
