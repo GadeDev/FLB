@@ -71,18 +71,16 @@ function updateUI() {
   
   const disabled = state.isRunning;
   if (btnP2) {
-    btnP2.textContent = "P2へパス";
     btnP2.classList.toggle('active', state.receiver === 'P2');
     (btnP2 as HTMLButtonElement).disabled = disabled;
   }
   if (btnP3) {
-    btnP3.textContent = "P3へパス";
     btnP3.classList.toggle('active', state.receiver === 'P3');
     (btnP3 as HTMLButtonElement).disabled = disabled;
   }
 
   if (btnExec) {
-    btnExec.textContent = "キックオフ";
+    btnExec.textContent = "KICK OFF";
     btnExec.style.display = state.cleared ? 'none' : 'block';
     (btnExec as HTMLButtonElement).disabled = disabled;
   }
@@ -129,7 +127,7 @@ function handleResult(res: SimResult) {
       showToast("全ステージクリア！", true);
       updateUI();
     } else {
-      showToast("ゴール！", true);
+      showToast("GOAL!", true);
       setTimeout(() => {
         state.levelIndex++;
         initLevel();
@@ -137,13 +135,13 @@ function handleResult(res: SimResult) {
     }
   } else {
     const msgs: Record<string, string> = {
-      'INTERCEPT': 'カットされました',
-      'KEEPER_SAVE': 'キーパーに阻まれました',
-      'OUT': 'ラインを割りました',
-      'OFFSIDE': 'オフサイド',
-      'NONE': 'タイムアップ'
+      'INTERCEPT': 'INTERCEPTED',
+      'KEEPER_SAVE': 'SAVED',
+      'OUT': 'OUT OF BOUNDS',
+      'OFFSIDE': 'OFFSIDE',
+      'NONE': 'TIME UP'
     };
-    showToast(msgs[res!] || '失敗', false);
+    showToast(msgs[res!] || 'MISS', false);
     
     setTimeout(() => {
       const lv = getLevel();
@@ -200,10 +198,13 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
+// ★操作ロジック
 function pickEntity(pos: Vec2): 'P1' | 'P2' | 'P3' | null {
+  // P1, P2, P3 すべて操作対象
   for (const id of ['P1', 'P2', 'P3'] as const) {
     const e = sim.entities.find(en => en.id === id);
     if (!e) continue;
+    // 半径+30px (約46px) まで許容して掴みやすくする
     if (pos.dist(e.pos) <= e.radius + 30) return id;
   }
   return null;
@@ -212,26 +213,33 @@ function pickEntity(pos: Vec2): 'P1' | 'P2' | 'P3' | null {
 if (canvas && renderer) {
   canvas.addEventListener('pointerdown', e => {
     if (state.isRunning || state.gameComplete) return;
+    
+    // 正確なゲーム内座標を取得
     const p = renderer.getGamePosition(e.clientX, e.clientY);
     const id = pickEntity(p);
+    
     if (id) {
       state.dragging = id;
       canvas.setPointerCapture(e.pointerId);
+      
       const ent = sim.entities.find(en => en.id === id);
       if (ent) {
         state.dragOffset = ent.pos.sub(p);
-        state.dragOffset.y -= 40; 
+        state.dragOffset.y -= 40; // 指で隠れないように少し上にずらす
       }
     }
   });
 
   canvas.addEventListener('pointermove', e => {
     if (!state.dragging) return;
+    
     const p = renderer.getGamePosition(e.clientX, e.clientY);
     const ent = sim.entities.find(en => en.id === state.dragging);
     if (!ent) return;
     
     const targetPos = p.add(state.dragOffset);
+
+    // 画面外に出ないようにクランプ
     const margin = 20;
     const x = Math.max(margin, Math.min(PITCH_W - margin, targetPos.x));
     const y = Math.max(margin, Math.min(PITCH_H - margin, targetPos.y));
