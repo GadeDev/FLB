@@ -1,6 +1,6 @@
 import { Vec2 } from '../core/Vector2';
 import type { Entity } from './Types';
-import { PITCH_W, PITCH_H } from './Simulator'; // サイズ定数をインポート
+import { PITCH_W, PITCH_H } from './Simulator';
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -12,18 +12,31 @@ export class Renderer {
 
   resize() {
     const dpr = window.devicePixelRatio || 1;
-    const rect = this.canvas.parentElement?.getBoundingClientRect();
-    if (!rect) return;
+    // 親要素(#app)のサイズを取得
+    const parent = this.canvas.parentElement;
+    if (!parent) return;
+
+    const rect = parent.getBoundingClientRect();
     
+    // キャンバスの解像度をデバイスに合わせる
     this.canvas.width = rect.width * dpr;
     this.canvas.height = rect.height * dpr;
+    
+    // CSS上のサイズも合わせる
     this.canvas.style.width = `${rect.width}px`;
     this.canvas.style.height = `${rect.height}px`;
 
+    // 描画設定リセット
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // 比率維持で最大表示
-    const scale = Math.min((rect.width * dpr) / PITCH_W, (rect.height * dpr) / PITCH_H);
+    // ★PC対応の肝：画面中央にアスペクト比維持で表示
+    // 画面の幅・高さのうち、小さい方に合わせてスケールを決める
+    const scale = Math.min(
+      (rect.width * dpr) / PITCH_W, 
+      (rect.height * dpr) / PITCH_H
+    );
+    
+    // 中央寄せのためのオフセット計算
     const offsetX = ((rect.width * dpr) - (PITCH_W * scale)) / 2;
     const offsetY = ((rect.height * dpr) - (PITCH_H * scale)) / 2;
 
@@ -31,18 +44,22 @@ export class Renderer {
     this.ctx.scale(scale, scale);
   }
 
+  // ... (clear, drawPitch, drawEntities, drawArrow, drawCircle は変更なし) ...
+  // ※前回のコードそのままでOKですが、念のため clear だけ再掲
   clear() {
-    this.time += 0.05; // アニメーション用タイマー
+    this.time += 0.05;
     this.ctx.save();
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.fillStyle = '#08131F'; 
+    this.ctx.fillStyle = '#02050a'; // 背景色（CSSと合わせる）
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.restore();
   }
-
+  
+  // drawPitch, drawEntities... は前回のままでOK
   drawPitch(goal: { x: number; y: number; w: number; h: number }) {
     const ctx = this.ctx;
+    // 背景（ピッチ内）
     ctx.fillStyle = '#08131F';
     ctx.fillRect(0, 0, PITCH_W, PITCH_H);
     
@@ -58,15 +75,15 @@ export class Renderer {
     ctx.lineTo(PITCH_W, PITCH_H / 2);
     ctx.stroke();
 
-    // センターサークル（比率：幅の約13%）
+    // センターサークル
     const centerR = PITCH_W * 0.13;
     ctx.beginPath();
     ctx.arc(PITCH_W/2, PITCH_H/2, centerR, 0, Math.PI*2);
     ctx.stroke();
 
     // ペナルティエリア（上）
-    const penW = PITCH_W * 0.6; // 幅の60%
-    const penH = PITCH_W * 0.24; // 幅の24%
+    const penW = PITCH_W * 0.6;
+    const penH = PITCH_W * 0.24;
     const penX = (PITCH_W - penW) / 2;
     ctx.strokeRect(penX, 0, penW, penH);
 
@@ -76,7 +93,7 @@ export class Renderer {
     const goalAreaX = (PITCH_W - goalAreaW) / 2;
     ctx.strokeRect(goalAreaX, 0, goalAreaW, goalAreaH);
 
-    // ペナルティアーク（簡易）
+    // ペナルティアーク
     ctx.beginPath();
     ctx.arc(PITCH_W/2, penH, PITCH_W*0.1, 0, Math.PI, false);
     ctx.stroke();
@@ -99,8 +116,8 @@ export class Renderer {
         color = '#FF0055'; // 赤
       } else {
         // 味方（操作可能）は点滅させる
-        const blink = Math.abs(Math.sin(this.time)) * 0.5 + 0.5; // 0.5 ~ 1.0
-        color = `rgba(0, 242, 255, ${blink})`; // 水色点滅
+        const blink = Math.abs(Math.sin(this.time)) * 0.5 + 0.5;
+        color = `rgba(0, 242, 255, ${blink})`; 
         stroke = '#00F2FF';
       }
 
