@@ -1,14 +1,81 @@
 {
+  "version": 1,
   "levels": [
     {
-      "id": "daily_001",
+      "id": "L001",
+      "label": "DAILY #001",
+      "seed": 1001,
       "tactic": "HIGH_LINE",
       "defenders": [
-        { "id": "D1", "x": 400, "y": 500 },
-        { "id": "D2", "x": 500, "y": 520 },
-        { "id": "D3", "x": 600, "y": 500 }
+        { "id": "D1", "x": 380, "y": 520 },
+        { "id": "D2", "x": 500, "y": 540 },
+        { "id": "D3", "x": 620, "y": 520 }
       ],
-      "gk": { "x": 500, "y": 650 }
+      "gk": { "x": 500, "y": 670 }
+    },
+    {
+      "id": "L002",
+      "label": "DAILY #002",
+      "seed": 1002,
+      "tactic": "MID_BLOCK",
+      "defenders": [
+        { "id": "D1", "x": 360, "y": 470 },
+        { "id": "D2", "x": 500, "y": 490 },
+        { "id": "D3", "x": 640, "y": 470 }
+      ],
+      "gk": { "x": 500, "y": 670 }
+    },
+    {
+      "id": "L003",
+      "label": "DAILY #003",
+      "seed": 1003,
+      "tactic": "MAN_MARK",
+      "defenders": [
+        { "id": "D1", "x": 420, "y": 470 },
+        { "id": "D2", "x": 560, "y": 500 },
+        { "id": "D3", "x": 650, "y": 460 }
+      ],
+      "gk": { "x": 500, "y": 670 },
+      "markTarget": "P2",
+      "markerId": "D1"
+    },
+    {
+      "id": "L004",
+      "label": "DAILY #004",
+      "seed": 1004,
+      "tactic": "HIGH_LINE",
+      "defenders": [
+        { "id": "D1", "x": 320, "y": 560 },
+        { "id": "D2", "x": 500, "y": 575 },
+        { "id": "D3", "x": 680, "y": 560 }
+      ],
+      "gk": { "x": 500, "y": 670 }
+    },
+    {
+      "id": "L005",
+      "label": "DAILY #005",
+      "seed": 1005,
+      "tactic": "MID_BLOCK",
+      "defenders": [
+        { "id": "D1", "x": 300, "y": 455 },
+        { "id": "D2", "x": 500, "y": 470 },
+        { "id": "D3", "x": 700, "y": 455 }
+      ],
+      "gk": { "x": 500, "y": 670 }
+    },
+    {
+      "id": "L006",
+      "label": "DAILY #006",
+      "seed": 1006,
+      "tactic": "MAN_MARK",
+      "defenders": [
+        { "id": "D1", "x": 380, "y": 480 },
+        { "id": "D2", "x": 520, "y": 510 },
+        { "id": "D3", "x": 650, "y": 475 }
+      ],
+      "gk": { "x": 500, "y": 670 },
+      "markTarget": "P4",
+      "markerId": "D1"
     }
   ]
 }
