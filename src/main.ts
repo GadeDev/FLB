@@ -17,6 +17,7 @@ type UIState = {
   tactic: Tactic;
   dragging: 'P1' | 'P2' | 'P3' | null;
   cleared: boolean;
+  gameComplete: boolean; // 全クリフラグ
 };
 
 const state: UIState = {
@@ -26,6 +27,7 @@ const state: UIState = {
   tactic: 'PASS_TO_RECEIVER',
   dragging: null,
   cleared: false,
+  gameComplete: false,
 };
 
 // --- DOM Elements ---
@@ -38,7 +40,7 @@ const btnReset = document.getElementById('btn-reset');
 const btnP2 = document.getElementById('btn-p2');
 const btnP3 = document.getElementById('btn-p3');
 const btnExec = document.getElementById('btn-exec');
-const btnNext = document.getElementById('btn-next');
+const btnNext = document.getElementById('btn-next'); // 保険用（通常は隠す）
 const msgToast = document.getElementById('msg-toast');
 
 // --- Helper Functions ---
@@ -54,19 +56,29 @@ function updateUI() {
   const lv = getLevel();
   if (!lv) return;
 
+  // 全クリ時の表示
+  if (state.gameComplete) {
+    if (elLevelDisplay) elLevelDisplay.textContent = "COMPLETE";
+    if (btnExec) {
+      btnExec.textContent = "RESTART";
+      btnExec.style.display = 'block';
+    }
+    if (btnNext) btnNext.classList.add('hidden');
+    return;
+  }
+
+  // 通常時の表示
   if (elLevelDisplay) {
     elLevelDisplay.textContent = `LV.${String(state.levelIndex + 1).padStart(2, '0')}`;
   }
-
+  
   if (btnP2) btnP2.classList.toggle('active', state.receiver === 'P2');
   if (btnP3) btnP3.classList.toggle('active', state.receiver === 'P3');
 
-  // 方式Aなので、Nextボタンは基本非表示のままでOK（保険で残す）
-  if (btnNext) btnNext.classList.add('hidden');
-
   if (btnExec) {
-    btnExec.style.display = 'block';
-    btnExec.toggleAttribute('disabled', false);
+    btnExec.textContent = "EXECUTE";
+    // クリア済みならボタンを隠す（自動遷移待ち）
+    btnExec.style.display = state.cleared ? 'none' : 'block';
   }
 }
 
@@ -76,66 +88,86 @@ function showToast(msg: string, isGood: boolean) {
   msgToast.classList.remove('hidden');
   msgToast.style.color = isGood ? '#00F2FF' : '#FF0055';
   msgToast.style.borderColor = isGood ? '#00F2FF' : '#FF0055';
-
+  
   msgToast.style.animation = 'none';
   void msgToast.offsetWidth;
   msgToast.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
 
-  setTimeout(() => {
-    msgToast.classList.add('hidden');
-  }, 2000);
+  // 全クリのときは消さない（余韻）
+  if (msg !== "CLEAR ALL") {
+    setTimeout(() => {
+      msgToast.classList.add('hidden');
+    }, 1500);
+  }
 }
 
 function initLevel() {
   const lv = getLevel();
   if (!lv) return;
   state.cleared = false;
+  state.gameComplete = false;
   sim.initFromLevel(lv, state.receiver, state.tactic);
   updateUI();
 }
 
-function goNextLevel() {
-  if (state.levels.length === 0) return;
-  state.levelIndex = (state.levelIndex + 1) % state.levels.length;
-  initLevel();
-}
-
 // --- Event Listeners ---
-if (btnP2) btnP2.onclick = () => { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); };
-if (btnP3) btnP3.onclick = () => { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); };
+
+if (btnP2) btnP2.onclick = () => { if(!state.gameComplete) { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); } };
+if (btnP3) btnP3.onclick = () => { if(!state.gameComplete) { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); } };
 
 if (btnReset) btnReset.onclick = () => initLevel();
 
-// 保険（基本は使わない）
-if (btnNext) btnNext.onclick = () => goNextLevel();
-
+// EXECUTEボタン（兼RESTARTボタン）
 if (btnExec) btnExec.onclick = () => {
-  // 連打防止（任意）
-  btnExec.toggleAttribute('disabled', true);
+  // 全クリ状態ならリスタート
+  if (state.gameComplete) {
+    state.levelIndex = 0;
+    state.gameComplete = false;
+    msgToast?.classList.add('hidden');
+    initLevel();
+    return;
+  }
+
+  if (state.cleared) return; // 連打防止
 
   const res = sim.run();
-
+  
   if (res.cleared) {
     state.cleared = true;
-    showToast('CLEAR!', true);
+    updateUI(); // ボタンを隠す
 
-    // ★方式A：少し見せてから自動で次へ
-    setTimeout(() => {
-      goNextLevel();
-    }, 900);
+    // 最終ステージかどうか判定
+    const isLastLevel = state.levelIndex >= state.levels.length - 1;
+
+    if (isLastLevel) {
+      // 全クリア！
+      state.gameComplete = true;
+      showToast("CLEAR ALL", true);
+      updateUI(); // RESTARTボタンを表示
+    } else {
+      // 通常クリア
+      const msg = res.reason === 'GOAL' ? 'GOAL!' : 'NICE PASS!';
+      showToast(msg, true);
+      
+      // 0.9秒後に次へ
+      setTimeout(() => {
+        state.levelIndex++;
+        initLevel();
+      }, 900);
+    }
 
   } else {
+    // 失敗
     const msgs: Record<string, string> = {
       'INTERCEPT': 'INTERCEPTED!',
       'OUT': 'OUT OF BOUNDS',
       'NONE': 'MISSED TARGET'
     };
     showToast(msgs[res.reason] || 'MISS', false);
-    btnExec.toggleAttribute('disabled', false);
   }
 };
 
-// --- Canvas Drag Interaction ---
+// --- Canvas Interaction ---
 function canvasToLocal(e: PointerEvent): Vec2 {
   if (!canvas) return new Vec2(0,0);
   const rect = canvas.getBoundingClientRect();
@@ -159,6 +191,7 @@ function pickEntity(x: number, y: number): 'P1' | 'P2' | 'P3' | null {
 
 if (canvas) {
   canvas.addEventListener('pointerdown', e => {
+    if (state.gameComplete) return;
     const p = canvasToLocal(e);
     const id = pickEntity(p.x, p.y);
     if (id) {
@@ -194,10 +227,12 @@ function loop() {
       renderer.drawPitch(lv.goal);
       renderer.drawEntities(sim.entities, sim.ball);
 
-      const p1 = sim.entities.find(e => e.id === 'P1');
-      const recv = sim.entities.find(e => e.id === state.receiver);
-      if (p1 && recv) {
-        renderer.drawArrow(p1.pos, recv.pos);
+      if (!state.gameComplete) {
+        const p1 = sim.entities.find(e => e.id === 'P1');
+        const recv = sim.entities.find(e => e.id === state.receiver);
+        if (p1 && recv) {
+          renderer.drawArrow(p1.pos, recv.pos);
+        }
       }
     }
   }
