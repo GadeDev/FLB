@@ -16,12 +16,11 @@ html, body {
 
 #app {
   width: 100%;
-  height: 100dvh; /* ブラウザバーを除いた実際の高さ */
+  height: 100dvh;
   position: relative;
   overflow: hidden;
 }
 
-/* キャンバス（背景） */
 canvas {
   display: block;
   position: absolute;
@@ -33,38 +32,38 @@ canvas {
   z-index: 0;
 }
 
-/* UIレイヤー（前面） */
 #ui-layer {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none; /* 下のゲームを操作可能に */
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  box-sizing: border-box;
+  pointer-events: none;
   z-index: 10;
+  /* セーフエリア */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 #ui-layer > * {
-  pointer-events: auto; /* 子要素は操作可能に */
+  pointer-events: auto;
 }
 
-/* ヘッダー */
 header {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  width: 100%;
+  padding: 0 15px;
   box-sizing: border-box;
+  z-index: 20; /* パスボタンより上に */
 }
 
 .level-badge {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 900;
   text-shadow: 0 2px 4px rgba(0,0,0,0.8);
   font-family: monospace;
@@ -74,64 +73,64 @@ header {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: #fff;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  font-size: 20px;
-  cursor: pointer;
+  font-size: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* コントロールエリア（下部固定） */
-#controls {
+/* ★パスボタン配置（ゴールネット脇） */
+#top-controls {
+  position: absolute;
+  top: 60px; /* ヘッダーの下、ゴールネットの横あたり */
+  left: 0;
   width: 100%;
-  padding: 20px;
-  padding-bottom: 40px; /* 下端に余裕を持たせる */
+  display: flex;
+  justify-content: space-between;
+  padding: 0 20px;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
-  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
 }
 
-.sub-controls {
-  display: flex;
-  gap: 20px;
-}
-
-button {
-  background: rgba(30, 40, 50, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #eee;
-  padding: 12px 24px;
+.pass-btn {
+  background: rgba(0, 60, 120, 0.8);
+  border: 1px solid rgba(100, 200, 255, 0.5);
+  color: #fff;
+  padding: 10px 16px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: bold;
-  cursor: pointer;
   backdrop-filter: blur(4px);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
   transition: transform 0.1s;
 }
 
-button:active {
+.pass-btn:active {
   transform: scale(0.95);
 }
 
-button.active {
-  background: rgba(0, 168, 255, 0.9);
-  border-color: #00a8ff;
-  color: #fff;
-  box-shadow: 0 0 15px rgba(0, 168, 255, 0.5);
+.pass-btn.active {
+  background: rgba(0, 180, 255, 0.9);
+  border-color: #fff;
+  box-shadow: 0 0 15px rgba(0, 180, 255, 0.6);
+}
+
+/* キックオフボタン（下部中央） */
+#bottom-controls {
+  position: absolute;
+  bottom: 40px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 #btn-exec {
   background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
   border: none;
   font-size: 20px;
-  padding: 16px 80px; /* 幅広に */
+  padding: 16px 80px;
   border-radius: 50px;
   color: #fff;
   box-shadow: 0 5px 20px rgba(46, 204, 113, 0.4);
@@ -139,7 +138,11 @@ button.active {
   letter-spacing: 1px;
 }
 
-/* 次へボタン（中央にドカンと表示） */
+#btn-exec:active {
+  transform: scale(0.95);
+}
+
+/* 次へボタン */
 #btn-next {
   position: absolute;
   bottom: 120px;
@@ -150,8 +153,10 @@ button.active {
   border: none;
   font-size: 18px;
   padding: 15px 40px;
+  border-radius: 30px;
   box-shadow: 0 5px 20px rgba(241, 196, 15, 0.5);
-  z-index: 20;
+  font-weight: bold;
+  z-index: 30;
 }
 
 .toast {
