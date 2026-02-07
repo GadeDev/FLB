@@ -8,7 +8,6 @@ const PLAYER_R = 16;
 const DEF_R = 20;
 const GK_R = 18;
 
-// フィールドサイズ（敵陣のみ）
 export const PITCH_W = 360;
 export const PITCH_H = 600;
 
@@ -21,6 +20,8 @@ export class Simulator {
   entities: Entity[] = [];
   ball: Vec2 = new Vec2(0, 0);
   receiver: Receiver = 'P2';
+  // 戦術変数を保持
+  tactic: Tactic = 'MAN_MARK';
   goal = { x: 0, y: 0, w: 0, h: 0 };
   
   result: SimResult = null;
@@ -29,8 +30,10 @@ export class Simulator {
   private phase: 'WAIT' | 'PASS' | 'SHOOT' = 'WAIT';
   private ballVel = new Vec2(0, 0);
 
-  initFromLevel(level: LevelData, receiver: Receiver, _tactic: Tactic) {
+  // tactic引数を必ず使用する
+  initFromLevel(level: LevelData, receiver: Receiver, tactic: Tactic) {
     this.receiver = receiver;
+    this.tactic = tactic; // ここで保存して後で使う
     this.goal = level.goal;
     this.result = null;
     this.time = 0;
@@ -48,11 +51,9 @@ export class Simulator {
       ...level.defenders.map((d, i) => mkEnt(`D${i+1}`, 'DEF', 'ENEMY', d, d.r ?? DEF_R))
     ];
 
-    // ★GKの確実な追加
     if (level.gk) {
       this.entities.push(mkEnt('GK', 'GK', 'ENEMY', level.gk, GK_R));
     } else {
-      // データになくても強制追加
       this.entities.push(mkEnt('GK', 'GK', 'ENEMY', { x: this.goal.x + this.goal.w / 2, y: 30 }, GK_R));
     }
 
@@ -65,21 +66,68 @@ export class Simulator {
     this.time += dt;
     const p1 = this.entities.find(e => e.id === 'P1')!;
     const recv = this.entities.find(e => e.id === this.receiver)!;
+    
+    // デコイ（囮）の取得：受け手がP2ならP3、P3ならP2
+    const decoyId = this.receiver === 'P2' ? 'P3' : 'P2';
+    const decoy = this.entities.find(e => e.id === decoyId)!;
+    
     const gk = this.entities.find(e => e.type === 'GK');
     const prevBall = this.ball.clone();
 
-    // 1. レシーバーのラン
+    // 1. 選手の移動（ラン）
     if (this.phase !== 'SHOOT') {
+      // 受け手：ゴールへ直進
       recv.pos.y -= PLAYER_SPD * dt;
+
+      // ★デコイラン実装
+      // 少し遅れて斜めに走る（スペースを作る動き）
+      const decoySpd = PLAYER_SPD * 0.9;
+      decoy.pos.y -= decoySpd * dt;
+      
+      // 受け手から離れる方向へ少し開く（X方向の動き）
+      const spreadDir = (decoy.pos.x < recv.pos.x) ? -1 : 1;
+      decoy.pos.x += spreadDir * 40 * dt; // 横移動速度
+
+      // 画面外に出ないようクランプ
+      const margin = 20;
+      decoy.pos.x = Math.max(margin, Math.min(PITCH_W - margin, decoy.pos.x));
     }
 
-    // 2. GKの動き（横移動でボールを追う）
+    // 2. DFのAI（戦術によって動きを変える）
+    if (this.phase !== 'SHOOT') {
+      const defenders = this.entities.filter(e => e.type === 'DEF');
+      for (const def of defenders) {
+        if (this.tactic === 'MAN_MARK') {
+          // マンツーマン：受け手に吸い寄せられる
+          const dx = recv.pos.x - def.pos.x;
+          // X方向のみ少し反応させる（Yはライン維持のためあまり動かさない）
+          if (Math.abs(dx) < 100) {
+            def.pos.x += Math.sign(dx) * 30 * dt;
+          }
+        } else {
+          // ZONAL（ゾーン）：デコイにも釣られる（中途半端な位置を守る）
+          // 最寄りの味方（受け手 or デコイ）を探す
+          const distRecv = def.pos.dist(recv.pos);
+          const distDecoy = def.pos.dist(decoy.pos);
+          
+          const target = (distDecoy < distRecv) ? decoy : recv;
+          const dx = target.pos.x - def.pos.x;
+          
+          // ゾーンなので反応は鈍いが、近くに来た方を追う
+          if (Math.abs(dx) < 80) {
+            def.pos.x += Math.sign(dx) * 20 * dt;
+          }
+        }
+      }
+    }
+
+    // 3. GKの動き
     if (gk && this.phase !== 'WAIT') {
         const targetX = Math.max(this.goal.x, Math.min(this.goal.x + this.goal.w, this.ball.x));
-        gk.pos.x += (targetX - gk.pos.x) * 6 * dt; // 少し反応速度アップ
+        gk.pos.x += (targetX - gk.pos.x) * 6 * dt;
     }
 
-    // 3. フェーズ進行
+    // 4. フェーズ進行
     if (this.phase === 'WAIT') {
       this.ball = p1.pos.clone();
 
@@ -109,6 +157,7 @@ export class Simulator {
     } else if (this.phase === 'PASS') {
       this.ball = this.ball.add(this.ballVel.mul(dt));
 
+      // 到達判定
       if (this.ball.dist(recv.pos) <= BALL_R + recv.radius + 15) {
         this.phase = 'SHOOT';
         const goalCenter = new Vec2(this.goal.x + this.goal.w / 2, -10);
@@ -119,7 +168,7 @@ export class Simulator {
       this.ball = this.ball.add(this.ballVel.mul(dt));
     }
 
-    // 4. 判定
+    // 5. 判定
     if (this.ball.x < 0 || this.ball.x > PITCH_W || this.ball.y < -50 || this.ball.y > PITCH_H + 50) {
       this.result = 'OUT';
       return;
