@@ -1,7 +1,8 @@
 import { Vec2 } from '../core/Vector2';
 import type { Entity, LevelData, Receiver, Tactic } from './Types';
 
-type SimResult = { cleared: boolean; reason: 'GOAL' | 'INTERCEPT' | 'OUT' | 'NONE' };
+// 結果の型に 'PASS' を追加
+export type SimResult = { cleared: boolean; reason: 'GOAL' | 'PASS' | 'INTERCEPT' | 'OUT' | 'NONE' };
 
 const BALL_R = 10;
 const PLAYER_R = 16;
@@ -25,29 +26,10 @@ export class Simulator {
 
     this.goal = level.goal;
 
-    const p1: Entity = {
-      id: 'P1',
-      type: 'P1',
-      team: 'ALLY',
-      pos: Vec2.from(level.p1),
-      radius: PLAYER_R
-    };
-
-    const p2: Entity = {
-      id: 'P2',
-      type: 'P2',
-      team: 'ALLY',
-      pos: Vec2.from(level.p2),
-      radius: PLAYER_R
-    };
-
-    const p3: Entity = {
-      id: 'P3',
-      type: 'P3',
-      team: 'ALLY',
-      pos: Vec2.from(level.p3),
-      radius: PLAYER_R
-    };
+    // Entity作成
+    const p1: Entity = { id: 'P1', type: 'P1', team: 'ALLY', pos: Vec2.from(level.p1), radius: PLAYER_R };
+    const p2: Entity = { id: 'P2', type: 'P2', team: 'ALLY', pos: Vec2.from(level.p2), radius: PLAYER_R };
+    const p3: Entity = { id: 'P3', type: 'P3', team: 'ALLY', pos: Vec2.from(level.p3), radius: PLAYER_R };
 
     const defenders: Entity[] = level.defenders.map((d, i) => ({
       id: `D${i + 1}`,
@@ -58,8 +40,6 @@ export class Simulator {
     }));
 
     this.entities = [p1, p2, p3, ...defenders];
-
-    // ボール初期位置はP1足元
     this.ball = p1.pos.clone();
   }
 
@@ -67,22 +47,23 @@ export class Simulator {
     const p1 = this.entities.find(e => e.id === 'P1')!;
     const recv = this.entities.find(e => e.id === this.receiver)!;
 
+    // パス方向と速度
     const dir = recv.pos.sub(p1.pos).norm();
     const speed = 10;
 
     let ball = p1.pos.clone();
-    const maxSteps = 500;
+    const maxSteps = 600; 
 
     for (let step = 0; step < maxSteps; step++) {
       ball = ball.add(dir.mul(speed));
       this.ball = ball;
 
-      // OUT
+      // 1. OUT判定
       if (ball.x < 0 || ball.x > PITCH_W || ball.y < 0 || ball.y > PITCH_H) {
         return { cleared: false, reason: 'OUT' };
       }
 
-      // INTERCEPT（敵）
+      // 2. INTERCEPT判定
       for (const d of this.entities) {
         if (d.team !== 'ENEMY') continue;
         if (ball.dist(d.pos) <= BALL_R + d.radius) {
@@ -90,7 +71,12 @@ export class Simulator {
         }
       }
 
-      // GOAL（矩形判定）
+      // 3. PASS成功判定（レシーバーに到達）
+      if (ball.dist(recv.pos) <= BALL_R + recv.radius) {
+        return { cleared: true, reason: 'PASS' };
+      }
+
+      // 4. GOAL判定（ゴール枠内）
       const g = this.goal;
       const inGoal =
         ball.x >= g.x &&
@@ -99,11 +85,6 @@ export class Simulator {
         ball.y <= g.y + g.h;
 
       if (inGoal) return { cleared: true, reason: 'GOAL' };
-
-      // ★修正点：受け手に到達したら「クリア」
-      if (ball.dist(recv.pos) <= BALL_R + recv.radius) {
-        return { cleared: true, reason: 'GOAL' }; // reasonはUIで使ってないのでGOALのままでOK
-      }
     }
 
     return { cleared: false, reason: 'NONE' };
