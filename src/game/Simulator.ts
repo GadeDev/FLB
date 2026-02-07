@@ -1,109 +1,148 @@
 import { Vec2 } from '../core/Vector2';
 import type { Entity, LevelData, Receiver, Tactic } from './Types';
 
-// 結果の型から 'PASS' を削除し、GOALのみをクリア条件に
-export type SimResult = { cleared: boolean; reason: 'GOAL' | 'INTERCEPT' | 'OUT' | 'NONE' };
+export type SimResult = 'GOAL' | 'INTERCEPT' | 'OUT' | 'OFFSIDE' | null;
 
-const BALL_R = 10;
+const BALL_R = 8;
 const PLAYER_R = 16;
-const DEF_R = 18;
-
+const DEF_R = 20;
 const PITCH_W = 360;
 const PITCH_H = 720;
+
+// パラメータ調整
+const PLAYER_SPD = 150;     // 選手の走る速さ
+const BALL_PASS_SPD = 420;  // パスの速さ
+const BALL_SHOOT_SPD = 750; // シュートの速さ
+const KICK_DELAY = 0.25;    // キックまでのタメ時間（秒）
 
 export class Simulator {
   entities: Entity[] = [];
   ball: Vec2 = new Vec2(0, 0);
-
   receiver: Receiver = 'P2';
-  tactic: Tactic = 'PASS_TO_RECEIVER';
-
   goal = { x: 0, y: 0, w: 0, h: 0 };
+  
+  // 実行結果
+  result: SimResult = null;
+
+  // 内部状態
+  private time = 0;
+  private phase: 'WAIT' | 'PASS' | 'SHOOT' = 'WAIT';
+  private ballVel = new Vec2(0, 0);
 
   initFromLevel(level: LevelData, receiver: Receiver, tactic: Tactic) {
     this.receiver = receiver;
-    this.tactic = tactic;
     this.goal = level.goal;
+    this.result = null;
+    this.time = 0;
+    this.phase = 'WAIT';
+    this.ballVel = Vec2.zero;
 
     // Entity作成
-    const p1: Entity = { id: 'P1', type: 'P1', team: 'ALLY', pos: Vec2.from(level.p1), radius: PLAYER_R };
-    const p2: Entity = { id: 'P2', type: 'P2', team: 'ALLY', pos: Vec2.from(level.p2), radius: PLAYER_R };
-    const p3: Entity = { id: 'P3', type: 'P3', team: 'ALLY', pos: Vec2.from(level.p3), radius: PLAYER_R };
+    const mkEnt = (id: string, type: any, team: any, pos: {x:number, y:number}, r: number): Entity => ({
+      id, type, team, pos: Vec2.from(pos), radius: r
+    });
 
-    const defenders: Entity[] = level.defenders.map((d, i) => ({
-      id: `D${i + 1}`,
-      type: 'DEF',
-      team: 'ENEMY',
-      pos: Vec2.from(d),
-      radius: d.r ?? DEF_R
-    }));
+    this.entities = [
+      mkEnt('P1', 'P1', 'ALLY', level.p1, PLAYER_R),
+      mkEnt('P2', 'P2', 'ALLY', level.p2, PLAYER_R),
+      mkEnt('P3', 'P3', 'ALLY', level.p3, PLAYER_R),
+      ...level.defenders.map((d, i) => mkEnt(`D${i+1}`, 'DEF', 'ENEMY', d, d.r ?? DEF_R))
+    ];
 
-    this.entities = [p1, p2, p3, ...defenders];
-    this.ball = p1.pos.clone();
+    this.ball = this.entities[0].pos.clone(); // P1の位置
   }
 
-  run(): SimResult {
+  // 1フレーム更新（アニメーション用）
+  update(dt: number) {
+    if (this.result) return; // 決着がついたら更新しない
+
+    this.time += dt;
     const p1 = this.entities.find(e => e.id === 'P1')!;
     const recv = this.entities.find(e => e.id === this.receiver)!;
 
-    // 初期状態：パスフェーズ
-    let phase: 'PASS' | 'SHOOT' = 'PASS';
+    // 1. レシーバーのラン（常にゴール方向へ走る）
+    // シュートフェーズ以外はずっと走る（ラインブレイク）
+    if (this.phase !== 'SHOOT') {
+      recv.pos.y += PLAYER_SPD * dt;
+    }
+
+    // 2. フェーズ進行
+    if (this.phase === 'WAIT') {
+      this.ball = p1.pos.clone(); // ボールは足元
+
+      // キックタイミング到達
+      if (this.time >= KICK_DELAY) {
+        // ★ オフサイド判定 ★
+        // 敵の中で「2番目にYが大きい（奥にいる）」選手を探す。いなければ一番奥。
+        const enemyYs = this.entities
+          .filter(e => e.team === 'ENEMY')
+          .map(e => e.pos.y)
+          .sort((a, b) => b - a);
+        
+        const offsideLine = enemyYs.length >= 2 ? enemyYs[1] : (enemyYs[0] || 9999);
+
+        if (recv.pos.y > offsideLine) {
+          this.result = 'OFFSIDE';
+          return;
+        }
+
+        // パス発射（スルーパス）
+        this.phase = 'PASS';
+        
+        // 未来位置予測（偏差射撃）
+        const dist = recv.pos.dist(p1.pos);
+        const arrivalTime = dist / BALL_PASS_SPD;
+        const leadY = recv.pos.y + (PLAYER_SPD * arrivalTime * 1.1); // 少し前へ出す
+        const target = new Vec2(recv.pos.x, leadY);
+
+        this.ballVel = target.sub(p1.pos).norm().mul(BALL_PASS_SPD);
+      }
+
+    } else if (this.phase === 'PASS') {
+      // ボール移動
+      this.ball = this.ball.add(this.ballVel.mul(dt));
+
+      // レシーバー到達判定
+      if (this.ball.dist(recv.pos) <= BALL_R + recv.radius + 8) {
+        this.phase = 'SHOOT';
+        
+        // ゴール中央へシュート
+        const goalCenter = new Vec2(
+          this.goal.x + this.goal.w / 2,
+          this.goal.y + this.goal.h / 2
+        );
+        this.ballVel = goalCenter.sub(this.ball).norm().mul(BALL_SHOOT_SPD);
+      }
+
+    } else if (this.phase === 'SHOOT') {
+      // ボール移動
+      this.ball = this.ball.add(this.ballVel.mul(dt));
+    }
+
+    // 3. 接触・判定
     
-    // 進行方向（まずはレシーバーへ）
-    let dir = recv.pos.sub(p1.pos).norm();
-    let speed = 10; // パス速度
+    // OUT
+    if (this.ball.x < 0 || this.ball.x > PITCH_W || this.ball.y < 0 || this.ball.y > PITCH_H) {
+      this.result = 'OUT';
+      return;
+    }
 
-    let ball = p1.pos.clone();
-    const maxSteps = 800; // シュートまで含めるので長めに
-
-    for (let step = 0; step < maxSteps; step++) {
-      ball = ball.add(dir.mul(speed));
-      this.ball = ball;
-
-      // 1. OUT判定
-      if (ball.x < 0 || ball.x > PITCH_W || ball.y < 0 || ball.y > PITCH_H) {
-        return { cleared: false, reason: 'OUT' };
-      }
-
-      // 2. INTERCEPT判定 (敵に当たったら即失敗)
-      for (const d of this.entities) {
-        if (d.team !== 'ENEMY') continue;
-        if (ball.dist(d.pos) <= BALL_R + d.radius) {
-          return { cleared: false, reason: 'INTERCEPT' };
+    // INTERCEPT（パス中・シュート中）
+    if (this.phase === 'PASS' || this.phase === 'SHOOT') {
+      for (const e of this.entities) {
+        if (e.team === 'ENEMY') {
+          if (this.ball.dist(e.pos) <= BALL_R + e.radius) {
+            this.result = 'INTERCEPT';
+            return;
+          }
         }
-      }
-
-      // 3. フェーズ切り替え判定（レシーバー到達時）
-      if (phase === 'PASS') {
-        // レシーバーに接触したらシュートフェーズへ移行
-        if (ball.dist(recv.pos) <= BALL_R + recv.radius) {
-          phase = 'SHOOT';
-          
-          // シュートターゲット：ゴールの中心
-          const goalCenter = new Vec2(
-            this.goal.x + this.goal.w / 2,
-            this.goal.y + this.goal.h / 2
-          );
-          
-          // 軌道変更
-          dir = goalCenter.sub(ball).norm();
-          speed = 18; // シュートは高速に！
-        }
-      }
-
-      // 4. GOAL判定（ゴール枠内）
-      const g = this.goal;
-      const inGoal =
-        ball.x >= g.x &&
-        ball.x <= g.x + g.w &&
-        ball.y >= g.y &&
-        ball.y <= g.y + g.h;
-
-      if (inGoal) {
-        return { cleared: true, reason: 'GOAL' };
       }
     }
 
-    return { cleared: false, reason: 'NONE' };
+    // GOAL
+    if (this.ball.x >= this.goal.x && this.ball.x <= this.goal.x + this.goal.w &&
+        this.ball.y >= this.goal.y && this.ball.y <= this.goal.y + this.goal.h) {
+      this.result = 'GOAL';
+    }
   }
 }
