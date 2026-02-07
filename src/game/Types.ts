@@ -2,7 +2,8 @@ import { Vec2 } from '../core/Vector2';
 
 export type Receiver = 'P2' | 'P3';
 export type Tactic = 'NORMAL' | 'PASS_TO_RECEIVER';
-export type EntityType = 'P1' | 'P2' | 'P3' | 'DEF' | 'BALL';
+// GKを追加
+export type EntityType = 'P1' | 'P2' | 'P3' | 'DEF' | 'GK' | 'BALL';
 
 export interface Entity {
   id: string;
@@ -18,6 +19,8 @@ export interface LevelData {
   p1: { x: number; y: number };
   p2: { x: number; y: number };
   p3: { x: number; y: number };
+  // GK用の定義を追加（オプション）
+  gk?: { x: number; y: number };
   defenders: Array<{ x: number; y: number; r?: number }>;
   goal: { x: number; y: number; w: number; h: number };
 }
