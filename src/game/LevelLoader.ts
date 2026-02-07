@@ -2,21 +2,25 @@ import type { LevelData } from './Types';
 
 export async function loadLevels(): Promise<LevelData[]> {
   try {
-    // エラー回避のための安全な書き方
+    // Viteの環境変数からベースURLを取得（GitHub Pages対応）
     const env = (import.meta as any).env;
-    const base = env?.BASE_URL || '/';
+    const base = env?.BASE_URL || './'; // './' に変更して相対パスで探させる
     const url = `${base}levels.json`;
     
+    console.log(`Loading levels from: ${url}`); // デバッグ用
+
     const res = await fetch(url);
-    if (!res.ok) throw new Error('Level load failed');
+    if (!res.ok) throw new Error(`Level load failed: ${res.status}`);
     return await res.json();
   } catch (e) {
-    console.error(e);
-    // 読み込み失敗時の予備データ
+    console.error("Failed to load levels, using fallback data:", e);
+    // 読み込み失敗時の予備データ（ここにもGKを追加！）
     return [{
-      id: 'L1', name: 'Fallback',
-      p1: {x:140,y:620}, p2:{x:120,y:460}, p3:{x:260,y:500},
-      defenders:[{x:200,y:530}], goal:{x:150,y:40,w:160,h:20}
+      id: 'L1', name: 'Fallback Level',
+      p1: {x:180,y:500}, p2:{x:100,y:300}, p3:{x:260,y:300},
+      gk: {x:180,y:30}, // ★GK追加
+      defenders:[{x:180,y:200}], 
+      goal:{x:100,y:0,w:160,h:20}
     }];
   }
 }
