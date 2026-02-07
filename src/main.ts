@@ -29,43 +29,44 @@ const state: UIState = {
 };
 
 // --- DOM Elements ---
-const canvas = document.querySelector<HTMLCanvasElement>('#c')!;
-const renderer = new Renderer(canvas);
+// 「!」を外して、nullの可能性を許容する書き方に変更
+const canvas = document.querySelector<HTMLCanvasElement>('#c');
+const renderer = canvas ? new Renderer(canvas) : null;
 const sim = new Simulator();
 
-const elLevelDisplay = document.getElementById('level-display')!;
-const btnReset = document.getElementById('btn-reset')!;
-const btnP2 = document.getElementById('btn-p2')!;
-const btnP3 = document.getElementById('btn-p3')!;
-const btnExec = document.getElementById('btn-exec')!;
-const btnNext = document.getElementById('btn-next')!;
-const msgToast = document.getElementById('msg-toast')!;
+const elLevelDisplay = document.getElementById('level-display');
+const btnReset = document.getElementById('btn-reset');
+const btnP2 = document.getElementById('btn-p2');
+const btnP3 = document.getElementById('btn-p3');
+const btnExec = document.getElementById('btn-exec');
+const btnNext = document.getElementById('btn-next');
+const msgToast = document.getElementById('msg-toast');
 
 // --- Helper Functions ---
 function clamp(v: number, a: number, b: number) {
   return Math.max(a, Math.min(b, v));
 }
 
-function getLevel(): LevelData {
-  return state.levels[state.levelIndex];
+function getLevel(): LevelData | null {
+  return state.levels[state.levelIndex] || null;
 }
 
 function updateUI() {
   const lv = getLevel();
+  if (!lv) return;
+
   if (elLevelDisplay) {
     elLevelDisplay.textContent = `LV.${String(state.levelIndex + 1).padStart(2, '0')}`;
   }
   
-  // レシーバーボタンの見た目更新
-  btnP2?.classList.toggle('active', state.receiver === 'P2');
-  btnP3?.classList.toggle('active', state.receiver === 'P3');
+  if (btnP2) btnP2.classList.toggle('active', state.receiver === 'P2');
+  if (btnP3) btnP3.classList.toggle('active', state.receiver === 'P3');
 
-  // クリア時のボタン切り替え
   if (state.cleared) {
-    btnNext?.classList.remove('hidden');
+    if (btnNext) btnNext.classList.remove('hidden');
     if (btnExec) btnExec.style.display = 'none';
   } else {
-    btnNext?.classList.add('hidden');
+    if (btnNext) btnNext.classList.add('hidden');
     if (btnExec) btnExec.style.display = 'block';
   }
 }
@@ -77,9 +78,9 @@ function showToast(msg: string, isGood: boolean) {
   msgToast.style.color = isGood ? '#00F2FF' : '#FF0055';
   msgToast.style.borderColor = isGood ? '#00F2FF' : '#FF0055';
   
-  // アニメーションをリセットするためにクラスを付け外し
   msgToast.style.animation = 'none';
-  msgToast.offsetHeight; /* trigger reflow */
+  // リフロー（再描画）を強制してアニメーションをリセット
+  void msgToast.offsetWidth;
   msgToast.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
 
   setTimeout(() => {
@@ -89,6 +90,7 @@ function showToast(msg: string, isGood: boolean) {
 
 function initLevel() {
   const lv = getLevel();
+  if (!lv) return;
   state.cleared = false;
   sim.initFromLevel(lv, state.receiver, state.tactic);
   updateUI();
@@ -112,9 +114,8 @@ if (btnExec) btnExec.onclick = () => {
   if (res.cleared) {
     state.cleared = true;
     showToast('GOAL!', true);
-    updateUI(); // 次へボタンを表示
+    updateUI(); 
   } else {
-    // 失敗理由を表示
     const msgs: Record<string, string> = {
       'INTERCEPT': 'INTERCEPTED!',
       'OUT': 'OUT OF BOUNDS',
@@ -126,6 +127,7 @@ if (btnExec) btnExec.onclick = () => {
 
 // --- Canvas Drag Interaction ---
 function canvasToLocal(e: PointerEvent): Vec2 {
+  if (!canvas) return new Vec2(0,0);
   const rect = canvas.getBoundingClientRect();
   const scaleX = PITCH_W / rect.width;
   const scaleY = PITCH_H / rect.height;
@@ -145,44 +147,48 @@ function pickEntity(x: number, y: number): 'P1' | 'P2' | 'P3' | null {
   return null;
 }
 
-canvas.addEventListener('pointerdown', e => {
-  const p = canvasToLocal(e);
-  const id = pickEntity(p.x, p.y);
-  if (id) {
-    state.dragging = id;
-    canvas.setPointerCapture(e.pointerId);
-  }
-});
+if (canvas) {
+  canvas.addEventListener('pointerdown', e => {
+    const p = canvasToLocal(e);
+    const id = pickEntity(p.x, p.y);
+    if (id) {
+      state.dragging = id;
+      canvas.setPointerCapture(e.pointerId);
+    }
+  });
 
-canvas.addEventListener('pointermove', e => {
-  if (!state.dragging) return;
-  const p = canvasToLocal(e);
-  const ent = sim.entities.find(en => en.id === state.dragging);
-  if (!ent) return;
+  canvas.addEventListener('pointermove', e => {
+    if (!state.dragging) return;
+    const p = canvasToLocal(e);
+    const ent = sim.entities.find(en => en.id === state.dragging);
+    if (!ent) return;
 
-  ent.pos = new Vec2(clamp(p.x, 20, PITCH_W - 20), clamp(p.y, 20, PITCH_H - 20));
+    ent.pos = new Vec2(clamp(p.x, 20, PITCH_W - 20), clamp(p.y, 20, PITCH_H - 20));
 
-  if (ent.id === 'P1') sim.ball = ent.pos.clone();
-});
+    if (ent.id === 'P1') sim.ball = ent.pos.clone();
+  });
 
-canvas.addEventListener('pointerup', e => {
-  state.dragging = null;
-  canvas.releasePointerCapture(e.pointerId);
-});
+  canvas.addEventListener('pointerup', e => {
+    state.dragging = null;
+    canvas.releasePointerCapture(e.pointerId);
+  });
+}
 
 // --- Game Loop ---
 function loop() {
-  renderer.clear();
+  if (renderer && canvas) {
+    renderer.clear();
 
-  const lv = getLevel();
-  if (lv) {
-    renderer.drawPitch(lv.goal);
-    renderer.drawEntities(sim.entities, sim.ball);
+    const lv = getLevel();
+    if (lv) {
+      renderer.drawPitch(lv.goal);
+      renderer.drawEntities(sim.entities, sim.ball);
 
-    const p1 = sim.entities.find(e => e.id === 'P1');
-    const recv = sim.entities.find(e => e.id === state.receiver);
-    if (p1 && recv) {
-      renderer.drawArrow(p1.pos, recv.pos);
+      const p1 = sim.entities.find(e => e.id === 'P1');
+      const recv = sim.entities.find(e => e.id === state.receiver);
+      if (p1 && recv) {
+        renderer.drawArrow(p1.pos, recv.pos);
+      }
     }
   }
   requestAnimationFrame(loop);
