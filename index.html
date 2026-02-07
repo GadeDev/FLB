@@ -1,62 +1,88 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#08131F" />
-  <title>Football Line Break</title>
+  <title>LINE BREAK LAB</title>
 
-  <!-- Icons -->
-  <!-- Use relative paths so this works on GitHub Pages (/FLB/) and locally -->
   <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
   <link rel="apple-touch-icon" href="./icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div id="app">
-    <canvas id="gameCanvas"></canvas>
+    <div class="canvas-layer">
+      <canvas id="c"></canvas>
+    </div>
 
-    <div id="ui-layer">
-      <!-- Top -->
-      <div id="header">
-        <div class="brand">
-          <div class="brand-title">FOOTBALL LINE BREAK</div>
-          <div class="brand-sub">Tactical puzzle • 20 seconds</div>
+    <div class="ui-layer">
+      <header class="hud-top">
+        <div class="level-info">
+          <span id="level-id" class="level-badge">LV.01</span>
+          <span id="level-name" class="level-title">Loading...</span>
         </div>
-        <div class="badges">
-          <div class="level-badge" id="level-badge">DAILY #001</div>
-          <div id="tactic-tag" class="tactic-badge">TACTIC: HIGH LINE</div>
+        
+        <div class="objective-pill">
+          <span class="label">TARGET</span>
+          <span id="objective-text" class="value">P2</span>
+        </div>
+
+        <button id="btn-menu" class="icon-btn" aria-label="Menu">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </header>
+
+      <footer class="hud-bottom">
+        <div id="hint-bar" class="hint-bar">
+          <span class="hint-icon">💡</span>
+          <span id="hint-text">選手をドラッグして配置を変えよう</span>
+        </div>
+
+        <div class="action-row">
+          <div class="toggle-group">
+            <button class="toggle-btn active" id="btn-recv-p2">To P2</button>
+            <button class="toggle-btn" id="btn-recv-p3">To P3</button>
+          </div>
+          
+          <button id="btn-simulate" class="primary-btn">
+            <span class="btn-text">EXECUTE</span>
+            <div class="btn-shine"></div>
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div id="card-result" class="modal-card hidden">
+        <div class="result-header">
+          <h2 id="res-title">GOAL!</h2>
+          <div class="res-line"></div>
+        </div>
+        <p id="res-msg">Perfect Line Break.</p>
+        <div class="modal-actions">
+          <button id="btn-retry" class="secondary-btn">RETRY</button>
+          <button id="btn-next" class="primary-btn">NEXT LEVEL</button>
         </div>
       </div>
 
-      <!-- Bottom HUD -->
-      <div id="hud-bottom">
-        <div class="control-group">
-          <button id="btn-mode" class="pill-btn" title="Toggle Move / Pass">MOVE</button>
-          <button id="btn-undo" class="icon-btn" title="Undo">↺</button>
-          <button id="btn-reset" class="icon-btn" title="Reset">⟲</button>
+      <div id="card-menu" class="modal-card hidden">
+        <h2>PAUSE</h2>
+        <div class="menu-list">
+          <button id="menu-resume" class="menu-item">Resume Game</button>
+          <button id="menu-reset" class="menu-item">Reset Layout</button>
+          <div class="volume-control">
+            <span>Sound / Haptics</span>
+            <span class="status-text">ON</span>
+          </div>
         </div>
-
-        <div class="control-group timing-toggle">
-          <label>RUN TIMING</label>
-          <button id="btn-timing" class="pill-btn">EARLY</button>
-        </div>
-
-        <button id="btn-run" class="action-btn">EXECUTE</button>
-      </div>
-
-      <!-- Result overlay -->
-      <div id="screen-result" class="screen hidden">
-        <div class="result-card">
-          <h1 id="result-title">GOAL</h1>
-          <p id="result-reason">Perfect break.</p>
-          <button id="btn-retry" class="action-btn">RETRY</button>
-        </div>
-      </div>
-
-      <!-- Hint -->
-      <div id="hint" class="hint">
-        <span class="hint-key">TIP</span>
-        <span id="hint-text">MOVE mode: drag players. PASS mode: drag from P1 to P2/P3.</span>
       </div>
     </div>
   </div>
