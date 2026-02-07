@@ -29,7 +29,6 @@ const state: UIState = {
 };
 
 // --- DOM Elements ---
-// HTMLにある要素を取得します
 const canvas = document.querySelector<HTMLCanvasElement>('#c')!;
 const renderer = new Renderer(canvas);
 const sim = new Simulator();
@@ -53,31 +52,39 @@ function getLevel(): LevelData {
 
 function updateUI() {
   const lv = getLevel();
-  elLevelDisplay.textContent = `LV.${String(state.levelIndex + 1).padStart(2, '0')}`;
+  if (elLevelDisplay) {
+    elLevelDisplay.textContent = `LV.${String(state.levelIndex + 1).padStart(2, '0')}`;
+  }
   
   // レシーバーボタンの見た目更新
-  btnP2.classList.toggle('active', state.receiver === 'P2');
-  btnP3.classList.toggle('active', state.receiver === 'P3');
+  btnP2?.classList.toggle('active', state.receiver === 'P2');
+  btnP3?.classList.toggle('active', state.receiver === 'P3');
 
   // クリア時のボタン切り替え
   if (state.cleared) {
-    btnNext.classList.remove('hidden');
-    btnExec.style.display = 'none';
+    btnNext?.classList.remove('hidden');
+    if (btnExec) btnExec.style.display = 'none';
   } else {
-    btnNext.classList.add('hidden');
-    btnExec.style.display = 'block';
+    btnNext?.classList.add('hidden');
+    if (btnExec) btnExec.style.display = 'block';
   }
 }
 
 function showToast(msg: string, isGood: boolean) {
+  if (!msgToast) return;
   msgToast.textContent = msg;
   msgToast.classList.remove('hidden');
   msgToast.style.color = isGood ? '#00F2FF' : '#FF0055';
   msgToast.style.borderColor = isGood ? '#00F2FF' : '#FF0055';
   
+  // アニメーションをリセットするためにクラスを付け外し
+  msgToast.style.animation = 'none';
+  msgToast.offsetHeight; /* trigger reflow */
+  msgToast.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+
   setTimeout(() => {
     msgToast.classList.add('hidden');
-  }, 1500);
+  }, 2000);
 }
 
 function initLevel() {
@@ -89,17 +96,17 @@ function initLevel() {
 
 // --- Event Listeners ---
 
-btnP2.onclick = () => { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); };
-btnP3.onclick = () => { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); };
+if (btnP2) btnP2.onclick = () => { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); };
+if (btnP3) btnP3.onclick = () => { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); };
 
-btnReset.onclick = () => initLevel();
+if (btnReset) btnReset.onclick = () => initLevel();
 
-btnNext.onclick = () => {
+if (btnNext) btnNext.onclick = () => {
   state.levelIndex = (state.levelIndex + 1) % state.levels.length;
   initLevel();
 };
 
-btnExec.onclick = () => {
+if (btnExec) btnExec.onclick = () => {
   const res = sim.run();
   
   if (res.cleared) {
@@ -107,15 +114,19 @@ btnExec.onclick = () => {
     showToast('GOAL!', true);
     updateUI(); // 次へボタンを表示
   } else {
-    showToast(res.reason, false);
+    // 失敗理由を表示
+    const msgs: Record<string, string> = {
+      'INTERCEPT': 'INTERCEPTED!',
+      'OUT': 'OUT OF BOUNDS',
+      'NONE': 'MISSED TARGET'
+    };
+    showToast(msgs[res.reason] || 'MISS', false);
   }
 };
 
 // --- Canvas Drag Interaction ---
-// PC/スマホ両対応の座標計算
 function canvasToLocal(e: PointerEvent): Vec2 {
   const rect = canvas.getBoundingClientRect();
-  // キャンバスの表示サイズと内部解像度(360x720)の比率を計算
   const scaleX = PITCH_W / rect.width;
   const scaleY = PITCH_H / rect.height;
   return new Vec2(
@@ -129,7 +140,6 @@ function pickEntity(x: number, y: number): 'P1' | 'P2' | 'P3' | null {
   for (const id of ['P1', 'P2', 'P3'] as const) {
     const e = sim.entities.find(en => en.id === id);
     if (!e) continue;
-    // 当たり判定を少し大きめに（操作しやすく）
     if (pos.dist(e.pos) <= e.radius + 15) return id;
   }
   return null;
@@ -150,10 +160,8 @@ canvas.addEventListener('pointermove', e => {
   const ent = sim.entities.find(en => en.id === state.dragging);
   if (!ent) return;
 
-  // 画面外に出ないように制限
   ent.pos = new Vec2(clamp(p.x, 20, PITCH_W - 20), clamp(p.y, 20, PITCH_H - 20));
 
-  // P1を動かしたらボールもついてくる
   if (ent.id === 'P1') sim.ball = ent.pos.clone();
 });
 
@@ -171,7 +179,6 @@ function loop() {
     renderer.drawPitch(lv.goal);
     renderer.drawEntities(sim.entities, sim.ball);
 
-    // パスラインのプレビュー（矢印）
     const p1 = sim.entities.find(e => e.id === 'P1');
     const recv = sim.entities.find(e => e.id === state.receiver);
     if (p1 && recv) {
