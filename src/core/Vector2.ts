@@ -25,7 +25,7 @@ export class Vec2 {
     return new Vec2(this.x * s, this.y * s);
   }
 
-  // ★ここが修正ポイント！距離を「数値(number)」で返します
+  // ★重要：距離を数値で返す
   dist(v: Vec2): number {
     return Math.hypot(this.x - v.x, this.y - v.y);
   }
