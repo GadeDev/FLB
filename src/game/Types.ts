@@ -42,3 +42,6 @@ export interface ResultStateSnapshot {
   cleared: boolean;
   reason: 'GOAL' | 'INTERCEPT' | 'OUT' | 'NONE';
 }
+// --- Build fix ---
+// StageManager.ts が import { LevelsFile } from "./Types" をしているため、ここで export しておく
+export type LevelsFile = any;
