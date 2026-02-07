@@ -1,8 +1,8 @@
 import { Vec2 } from '../core/Vector2';
 import type { Entity, LevelData, Receiver, Tactic } from './Types';
 
-// 結果の型に 'PASS' を追加
-export type SimResult = { cleared: boolean; reason: 'GOAL' | 'PASS' | 'INTERCEPT' | 'OUT' | 'NONE' };
+// 結果の型から 'PASS' を削除し、GOALのみをクリア条件に
+export type SimResult = { cleared: boolean; reason: 'GOAL' | 'INTERCEPT' | 'OUT' | 'NONE' };
 
 const BALL_R = 10;
 const PLAYER_R = 16;
@@ -23,7 +23,6 @@ export class Simulator {
   initFromLevel(level: LevelData, receiver: Receiver, tactic: Tactic) {
     this.receiver = receiver;
     this.tactic = tactic;
-
     this.goal = level.goal;
 
     // Entity作成
@@ -47,12 +46,15 @@ export class Simulator {
     const p1 = this.entities.find(e => e.id === 'P1')!;
     const recv = this.entities.find(e => e.id === this.receiver)!;
 
-    // パス方向と速度
-    const dir = recv.pos.sub(p1.pos).norm();
-    const speed = 10;
+    // 初期状態：パスフェーズ
+    let phase: 'PASS' | 'SHOOT' = 'PASS';
+    
+    // 進行方向（まずはレシーバーへ）
+    let dir = recv.pos.sub(p1.pos).norm();
+    let speed = 10; // パス速度
 
     let ball = p1.pos.clone();
-    const maxSteps = 600; 
+    const maxSteps = 800; // シュートまで含めるので長めに
 
     for (let step = 0; step < maxSteps; step++) {
       ball = ball.add(dir.mul(speed));
@@ -63,7 +65,7 @@ export class Simulator {
         return { cleared: false, reason: 'OUT' };
       }
 
-      // 2. INTERCEPT判定
+      // 2. INTERCEPT判定 (敵に当たったら即失敗)
       for (const d of this.entities) {
         if (d.team !== 'ENEMY') continue;
         if (ball.dist(d.pos) <= BALL_R + d.radius) {
@@ -71,9 +73,22 @@ export class Simulator {
         }
       }
 
-      // 3. PASS成功判定（レシーバーに到達）
-      if (ball.dist(recv.pos) <= BALL_R + recv.radius) {
-        return { cleared: true, reason: 'PASS' };
+      // 3. フェーズ切り替え判定（レシーバー到達時）
+      if (phase === 'PASS') {
+        // レシーバーに接触したらシュートフェーズへ移行
+        if (ball.dist(recv.pos) <= BALL_R + recv.radius) {
+          phase = 'SHOOT';
+          
+          // シュートターゲット：ゴールの中心
+          const goalCenter = new Vec2(
+            this.goal.x + this.goal.w / 2,
+            this.goal.y + this.goal.h / 2
+          );
+          
+          // 軌道変更
+          dir = goalCenter.sub(ball).norm();
+          speed = 18; // シュートは高速に！
+        }
       }
 
       // 4. GOAL判定（ゴール枠内）
@@ -84,7 +99,9 @@ export class Simulator {
         ball.y >= g.y &&
         ball.y <= g.y + g.h;
 
-      if (inGoal) return { cleared: true, reason: 'GOAL' };
+      if (inGoal) {
+        return { cleared: true, reason: 'GOAL' };
+      }
     }
 
     return { cleared: false, reason: 'NONE' };
