@@ -10,6 +10,9 @@ export class Renderer {
   private offsetX = 0;
   private offsetY = 0;
 
+  // 上部の余白（ゴールネット表示用）
+  private readonly TOP_MARGIN = 40; 
+
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d', { alpha: false })!;
   }
@@ -19,25 +22,24 @@ export class Renderer {
     const winW = window.innerWidth;
     const winH = window.innerHeight;
 
-    // キャンバスの内部解像度を画面サイズに合わせる
     this.canvas.width = winW * dpr;
     this.canvas.height = winH * dpr;
-    
-    // CSSサイズ
     this.canvas.style.width = `${winW}px`;
     this.canvas.style.height = `${winH}px`;
 
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // ★重要：画面全体に収まる最大サイズ（contain）を計算
+    // ★修正: ゴールネット(-20px付近)が見えるように、論理的な高さを拡張して計算
+    const logicalHeight = PITCH_H + this.TOP_MARGIN + 20; // 下にも少し余裕を
+
     this.scale = Math.min(
       (winW * dpr) / PITCH_W, 
-      (winH * dpr) / PITCH_H
+      (winH * dpr) / logicalHeight
     );
     
-    // 中央寄せオフセット
+    // 中央寄せ（上部にマージンを持たせて下にずらす）
     this.offsetX = ((winW * dpr) - (PITCH_W * this.scale)) / 2;
-    this.offsetY = ((winH * dpr) - (PITCH_H * this.scale)) / 2;
+    this.offsetY = ((winH * dpr) - (PITCH_H * this.scale)) / 2 + (this.TOP_MARGIN * this.scale);
 
     this.ctx.translate(this.offsetX, this.offsetY);
     this.ctx.scale(this.scale, this.scale);
@@ -45,7 +47,6 @@ export class Renderer {
 
   getGamePosition(clientX: number, clientY: number): Vec2 {
     const dpr = window.devicePixelRatio || 1;
-    // clientX/Y は画面左上からの座標。canvasは全画面なのでそのまま使える
     const x = clientX * dpr;
     const y = clientY * dpr;
 
@@ -60,8 +61,7 @@ export class Renderer {
     this.ctx.save();
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    // 余白部分の色（CSS背景となじませる）
-    this.ctx.fillStyle = '#000'; 
+    this.ctx.fillStyle = '#050505'; // 背景色
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.restore();
   }
@@ -69,7 +69,7 @@ export class Renderer {
   drawPitch(goal: { x: number; y: number; w: number; h: number }) {
     const ctx = this.ctx;
 
-    // 芝生（ゴール前・敵陣）
+    // 芝生
     ctx.fillStyle = '#2E7D32'; 
     ctx.fillRect(0, 0, PITCH_W, PITCH_H);
 
@@ -86,7 +86,7 @@ export class Renderer {
     // 外枠
     ctx.strokeRect(0, 0, PITCH_W, PITCH_H);
 
-    // ペナルティエリア（上）
+    // ペナルティエリア
     const penW = 220;
     const penH = 110; 
     const penX = (PITCH_W - penW) / 2;
@@ -103,7 +103,7 @@ export class Renderer {
     ctx.arc(PITCH_W / 2, penH, 35, 0, Math.PI);
     ctx.stroke();
 
-    // センターサークル（下・半円）
+    // センターサークル
     ctx.beginPath();
     ctx.arc(PITCH_W / 2, PITCH_H, 50, Math.PI, Math.PI * 2);
     ctx.stroke();
@@ -114,17 +114,19 @@ export class Renderer {
     ctx.arc(PITCH_W / 2, PITCH_H, 4, 0, Math.PI * 2);
     ctx.fill();
 
-    // 敵ゴール
+    // ★敵ゴール（ネット） - Y座標マイナスエリアを描画
     ctx.save();
     ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.fillRect(goal.x, -20, goal.w, 20);
+    ctx.fillRect(goal.x, -20, goal.w, 20); // 上に飛び出す
     ctx.strokeStyle = '#ccc';
     ctx.lineWidth = 1;
     ctx.beginPath();
+    // 縦線
     for(let i=0; i<=goal.w; i+=10) {
         ctx.moveTo(goal.x + i, -20);
         ctx.lineTo(goal.x + i, 0);
     }
+    // 横線
     for(let j=0; j<=20; j+=5) {
         ctx.moveTo(goal.x, -j);
         ctx.lineTo(goal.x + goal.w, -j);
@@ -147,13 +149,13 @@ export class Renderer {
       let stroke = '#fff';
       
       if (e.type === 'GK') {
-        color = '#F1C40F'; // GK: 黄色
+        color = '#F1C40F';
         stroke = '#D4AC0D';
       } else if (e.team === 'ENEMY') {
-        color = '#E74C3C'; // 敵: 赤
+        color = '#E74C3C';
         stroke = '#C0392B';
       } else {
-        // 味方（P1, P2, P3）
+        // 味方
         const blink = Math.abs(Math.sin(this.time * 3)) * 0.2 + 0.8;
         color = `rgba(52, 152, 219, ${blink})`;
         stroke = '#2980B9';
