@@ -8,8 +8,8 @@ export type EntityType = 'P1' | 'P2' | 'P3' | 'DEF' | 'BALL';
 
 export interface Entity {
   id: string;
-  type: EntityType;         // ★重要：Renderer/Simulatorが参照
-  pos: Vec2;                // ★Vec2 class
+  type: EntityType;
+  pos: Vec2;
   radius: number;
   team: 'ALLY' | 'ENEMY' | 'NEUTRAL';
 }
@@ -24,24 +24,9 @@ export interface LevelData {
   goal: { x: number; y: number; w: number; h: number };
 }
 
-export interface EditStateSnapshot {
-  p1: Vec2;
-  p2: Vec2;
-  p3: Vec2;
-  receiver: Receiver;
-}
-
 export interface SimStateSnapshot {
   entities: Entity[];
   ball: Vec2;
   receiver: Receiver;
   tactic: Tactic;
 }
-
-export interface ResultStateSnapshot {
-  cleared: boolean;
-  reason: 'GOAL' | 'INTERCEPT' | 'OUT' | 'NONE';
-}
-// --- Build fix ---
-// StageManager.ts が import { LevelsFile } from "./Types" をしているため、ここで export しておく
-export type LevelsFile = any;
