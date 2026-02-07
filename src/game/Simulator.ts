@@ -6,11 +6,11 @@ export type SimResult = 'GOAL' | 'INTERCEPT' | 'OUT' | 'OFFSIDE' | 'KEEPER_SAVE'
 const BALL_R = 8;
 const PLAYER_R = 16;
 const DEF_R = 20;
-const GK_R = 18; // GKのサイズ
+const GK_R = 18;
 
-// フィールドサイズを修正（360x720 -> 360x600）サッカーコートの比率に近づける
+// ★修正：縦幅を短くして「敵陣のみ」にする（スマホで大きく表示するため）
 export const PITCH_W = 360;
-export const PITCH_H = 600;
+export const PITCH_H = 600; // 720 -> 600
 
 const PLAYER_SPD = 220;
 const BALL_PASS_SPD = 420;
@@ -48,11 +48,10 @@ export class Simulator {
       ...level.defenders.map((d, i) => mkEnt(`D${i+1}`, 'DEF', 'ENEMY', d, d.r ?? DEF_R))
     ];
 
-    // GKの追加（データになければ自動生成）
+    // GK追加
     if (level.gk) {
       this.entities.push(mkEnt('GK', 'GK', 'ENEMY', level.gk, GK_R));
     } else {
-      // デフォルトGK位置
       this.entities.push(mkEnt('GK', 'GK', 'ENEMY', { x: this.goal.x + this.goal.w / 2, y: 30 }, GK_R));
     }
 
@@ -73,10 +72,9 @@ export class Simulator {
       recv.pos.y -= PLAYER_SPD * dt;
     }
 
-    // 2. GKの動き（ボールのX座標に合わせて少し動く）
+    // 2. GKの動き
     if (gk && this.phase !== 'WAIT') {
         const targetX = Math.max(this.goal.x, Math.min(this.goal.x + this.goal.w, this.ball.x));
-        // 少し遅れて追従させる（LERP）
         gk.pos.x += (targetX - gk.pos.x) * 5 * dt;
     }
 
@@ -85,17 +83,11 @@ export class Simulator {
       this.ball = p1.pos.clone();
 
       if (this.time >= KICK_DELAY) {
-        // オフサイド判定
-        // GKを除くDFのみを抽出してソート
+        // オフサイド判定（GK除くDFの中で一番後ろ）
         const defendersY = this.entities
           .filter(e => e.team === 'ENEMY' && e.type !== 'GK')
           .map(e => e.pos.y)
           .sort((a, b) => a - b);
-        
-        // 後ろから2人目（GK含む）＝ DFの中で一番後ろの選手（GKが一番後ろ前提なら）
-        // ルール：GKを含む守備側全選手の中で、ゴールラインから2番目に近い選手の位置
-        // ここでは簡易的に「GK以外のDFの中で一番後ろ（Yが小さい）」をオフサイドラインとします
-        // ※GKは常に一番後ろにいると仮定
         
         const offsideLine = defendersY.length > 0 ? defendersY[0] : -9999;
 
@@ -118,7 +110,7 @@ export class Simulator {
 
       if (this.ball.dist(recv.pos) <= BALL_R + recv.radius + 15) {
         this.phase = 'SHOOT';
-        const goalCenter = new Vec2(this.goal.x + this.goal.w / 2, -10); // ゴール奥を狙う
+        const goalCenter = new Vec2(this.goal.x + this.goal.w / 2, -10);
         this.ballVel = goalCenter.sub(this.ball).norm().mul(BALL_SHOOT_SPD);
       }
 
@@ -127,30 +119,23 @@ export class Simulator {
     }
 
     // 4. 判定
-
-    // OUT
-    if (this.ball.x < 0 || this.ball.x > PITCH_W || this.ball.y < -50 || this.ball.y > PITCH_H) {
+    // OUT判定（下限を少し広げる）
+    if (this.ball.x < 0 || this.ball.x > PITCH_W || this.ball.y < -50 || this.ball.y > PITCH_H + 50) {
       this.result = 'OUT';
       return;
     }
 
-    // 接触判定（線分）
     if (this.phase === 'PASS' || this.phase === 'SHOOT') {
       for (const e of this.entities) {
         if (e.team === 'ENEMY') {
           if (this.checkCircleSegment(e.pos, e.radius + BALL_R, prevBall, this.ball)) {
-            if (e.type === 'GK') {
-                this.result = 'KEEPER_SAVE';
-            } else {
-                this.result = 'INTERCEPT';
-            }
+            this.result = e.type === 'GK' ? 'KEEPER_SAVE' : 'INTERCEPT';
             return;
           }
         }
       }
     }
 
-    // GOAL
     if (this.ball.y <= 0 && this.ball.x >= this.goal.x && this.ball.x <= this.goal.x + this.goal.w) {
       this.result = 'GOAL';
     }
