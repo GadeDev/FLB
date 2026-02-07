@@ -15,7 +15,7 @@ const PLAYER_SPD = 220;
 const BALL_PASS_SPD = 420;
 const BALL_SHOOT_SPD = 750;
 const KICK_DELAY = 0.25;
-const MIN_PASS_TIME = 0.2; // パスの最低飛行時間
+const MIN_PASS_TIME = 0.2;
 
 export class Simulator {
   entities: Entity[] = [];
@@ -26,21 +26,17 @@ export class Simulator {
   
   result: SimResult = null;
   
-  // UI連携用
   public autoMessage: string | null = null;
   public nextActionLine: { from: Vec2, to: Vec2 } | null = null;
 
   private time = 0;
-  // フェーズ定義を拡張： DECIDE（判断中/演出停止）を追加
   private phase: 'WAIT' | 'PASS' | 'DECIDE' | 'SHOOT' = 'WAIT';
   private ballVel = new Vec2(0, 0);
   
-  // 状態管理
   private passCount = 0;
-  private passTime = 0; // 現在のパスの経過時間
+  private passTime = 0;
   private freezeTimer = 0;
   
-  // 次のアクション予約
   private pendingPhase: 'PASS' | 'SHOOT' | null = null;
   private pendingBallVel: Vec2 = Vec2.zero;
   private pendingReceiver: string | null = null;
@@ -85,36 +81,31 @@ export class Simulator {
   update(dt: number) {
     if (this.result) return;
 
-    // --- DECIDEフェーズ（演出停止中） ---
     if (this.phase === 'DECIDE') {
       this.freezeTimer -= dt;
       if (this.freezeTimer <= 0) {
         this.executePendingAction();
       }
-      return; // 停止中は他の更新を行わない
+      return;
     }
 
     this.time += dt;
 
-    // エンティティ取得
     const p1 = this.entities.find(e => e.id === 'P1')!;
-    // 現在のターゲット
     const targetId = this.pendingReceiver || this.receiver;
     const recv = this.entities.find(e => e.id === targetId)!;
     
-    // デコイ（ターゲットではない方）
     const decoyId = targetId === 'P2' ? 'P3' : 'P2';
     const decoy = this.entities.find(e => e.id === decoyId)!;
     
     const gk = this.entities.find(e => e.type === 'GK');
     const prevBall = this.ball.clone();
 
-    // 1. 移動処理 (SHOOT以外)
-    if (this.phase !== 'SHOOT') {
-      // 受け手：前進
+    // 1. 移動処理 (WAITとSHOOT以外)
+    // ★修正: WAIT中は動かないように変更
+    if (this.phase !== 'WAIT' && this.phase !== 'SHOOT') {
       recv.pos.y -= PLAYER_SPD * dt;
 
-      // デコイ：動く
       const decoySpd = PLAYER_SPD * 0.9;
       decoy.pos.y -= decoySpd * dt;
       const spreadDir = (decoy.pos.x < recv.pos.x) ? -1 : 1;
@@ -123,7 +114,6 @@ export class Simulator {
       const margin = 20;
       decoy.pos.x = Math.max(margin, Math.min(PITCH_W - margin, decoy.pos.x));
 
-      // DFのAI
       const defenders = this.entities.filter(e => e.type === 'DEF');
       for (const def of defenders) {
         if (this.tactic === 'MAN_MARK') {
@@ -139,7 +129,6 @@ export class Simulator {
       }
     }
 
-    // GK
     if (gk && this.phase !== 'WAIT') {
         const targetX = Math.max(this.goal.x, Math.min(this.goal.x + this.goal.w, this.ball.x));
         gk.pos.x += (targetX - gk.pos.x) * 6 * dt;
@@ -150,22 +139,17 @@ export class Simulator {
       this.ball = p1.pos.clone();
 
       if (this.time >= KICK_DELAY) {
-        // PASS1開始
         this.startPass(p1.pos, recv, 1);
       }
 
     } else if (this.phase === 'PASS') {
-      this.passTime += dt; // 飛行時間計測
+      this.passTime += dt;
       this.ball = this.ball.add(this.ballVel.mul(dt));
 
-      // 到達判定 (最低飛行時間を満たしている場合のみ)
       if (this.passTime >= MIN_PASS_TIME && 
           this.ball.dist(recv.pos) <= BALL_R + recv.radius + 15) {
         
-        // 受領確定 -> 位置補正
         this.ball = recv.pos.clone();
-        
-        // 次の判断へ
         this.startDecide(recv, decoy);
       }
 
@@ -173,14 +157,12 @@ export class Simulator {
       this.ball = this.ball.add(this.ballVel.mul(dt));
     }
 
-    // 3. 判定 (OUT, INTERCEPT, GOAL)
-    // OUT
+    // 3. 判定
     if (this.ball.x < 0 || this.ball.x > PITCH_W || this.ball.y < -50 || this.ball.y > PITCH_H + 50) {
       this.result = 'OUT';
       return;
     }
 
-    // INTERCEPT / KEEPER_SAVE
     if (this.phase === 'PASS' || this.phase === 'SHOOT') {
       for (const e of this.entities) {
         if (e.team === 'ENEMY') {
@@ -192,16 +174,12 @@ export class Simulator {
       }
     }
 
-    // GOAL
     if (this.ball.y <= 0 && this.ball.x >= this.goal.x && this.ball.x <= this.goal.x + this.goal.w) {
       this.result = 'GOAL';
     }
   }
 
-  // --- アクション制御 ---
-
   private startPass(from: Vec2, targetEntity: Entity, count: number) {
-    // オフサイド判定
     if (this.checkOffside(targetEntity)) {
       this.result = 'OFFSIDE';
       return;
@@ -209,12 +187,11 @@ export class Simulator {
 
     this.phase = 'PASS';
     this.passCount = count;
-    this.passTime = 0; // タイマーリセット
-    this.autoMessage = count === 1 ? "PASS 1" : null; // PASS1のみ明示
+    this.passTime = 0;
+    this.autoMessage = count === 1 ? "PASS 1" : null;
 
     const dist = targetEntity.pos.dist(from);
     const arrivalTime = dist / BALL_PASS_SPD;
-    // リードパス
     const leadY = targetEntity.pos.y - (PLAYER_SPD * arrivalTime * 1.0);
     const targetPos = new Vec2(targetEntity.pos.x, leadY);
     
@@ -223,31 +200,39 @@ export class Simulator {
 
   private startDecide(currentHolder: Entity, otherAlly: Entity) {
     this.phase = 'DECIDE';
-    this.freezeTimer = 0.35; // 演出停止時間
+    this.freezeTimer = 0.35;
 
     const goalCenter = new Vec2(this.goal.x + this.goal.w / 2, -10);
 
-    // 自動判断ロジック
-    // A. シュートコースが空いているか
-    if (this.isPathClear(currentHolder.pos, goalCenter)) {
+    // ★修正: シュート優先条件を厳しく（近距離のみ）
+    // 220px以内 かつ コースが空いている場合のみ即シュート
+    const canShoot = currentHolder.pos.y < 220 && this.isPathClear(currentHolder.pos, goalCenter);
+
+    if (canShoot) {
       this.setPendingShoot(currentHolder.pos, goalCenter, "AUTO: SHOOT!");
       return;
     }
 
-    // B. PASS2 (まだ1本目なら)
+    // ★修正: PASS2判定（PASS1の場合）
     if (this.passCount === 1) {
-      // オフサイドにならないか？
+      // 実際のリードパス位置を計算して判定する
+      const dist = otherAlly.pos.dist(currentHolder.pos);
+      const arrivalTime = dist / BALL_PASS_SPD;
+      const leadY = otherAlly.pos.y - (PLAYER_SPD * arrivalTime * 1.0);
+      const leadTargetPos = new Vec2(otherAlly.pos.x, leadY);
+
       const isOffside = this.checkOffside(otherAlly);
-      // パスコースは空いているか？
-      const canPass = this.isPathClear(currentHolder.pos, otherAlly.pos);
+      // リード位置へのコースチェック
+      const canPass = this.isPathClear(currentHolder.pos, leadTargetPos);
 
       if (!isOffside && canPass) {
-        this.setPendingPass(otherAlly, "AUTO: PASS → " + otherAlly.id);
+        // リード位置を渡してライン描画と実動作を一致させる
+        this.setPendingPass(otherAlly, "AUTO: PASS → " + otherAlly.id, currentHolder.pos, leadTargetPos);
         return;
       }
     }
 
-    // C. 強引にシュート
+    // どれもダメなら強引にシュート
     this.setPendingShoot(currentHolder.pos, goalCenter, "AUTO: SHOOT (FORCED)");
   }
 
@@ -259,15 +244,12 @@ export class Simulator {
     this.nextActionLine = { from, to: target };
   }
 
-  private setPendingPass(targetEntity: Entity, msg: string) {
+  // ★修正: fromとtoを受け取り、プレビュー線を正確にする
+  private setPendingPass(targetEntity: Entity, msg: string, from: Vec2, to: Vec2) {
     this.pendingPhase = 'PASS';
     this.pendingReceiver = targetEntity.id;
-    // 速度計算は実行時に行う（DECIDE中も相手は動いているか？いや、動いていない想定だが念のため）
-    // ここではターゲットだけ保存して、execute時に計算でもよいが、
-    // 停止中なので位置は変わらないはず。
     this.autoMessage = msg;
-    // ライン表示用（概算）
-    this.nextActionLine = { from: this.ball, to: targetEntity.pos };
+    this.nextActionLine = { from, to }; // 実際のリード位置への線を表示
   }
 
   private executePendingAction() {
@@ -275,15 +257,12 @@ export class Simulator {
         this.phase = 'SHOOT';
         this.ballVel = this.pendingBallVel;
     } else if (this.pendingPhase === 'PASS') {
-        // PASS2開始処理へ
         const targetId = this.pendingReceiver;
         const target = this.entities.find(e => e.id === targetId)!;
-        this.receiver = targetId as Receiver; // レシーバー更新
+        this.receiver = targetId as Receiver;
         this.startPass(this.ball, target, 2);
     }
   }
-
-  // --- 判定ヘルパー ---
 
   private checkOffside(target: Entity): boolean {
     const defendersY = this.entities
