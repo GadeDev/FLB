@@ -64,16 +64,9 @@ export class Simulator {
   }
 
   run(): SimResult {
-    // ルール（簡易）:
-    // - P1からreceiverへパス
-    // - ボール移動中にDFに触れたらINTERCEPT
-    // - ゴール枠に入ればGOAL
-    // - ピッチ外に出ればOUT
-
     const p1 = this.entities.find(e => e.id === 'P1')!;
     const recv = this.entities.find(e => e.id === this.receiver)!;
 
-    // パス方向
     const dir = recv.pos.sub(p1.pos).norm();
     const speed = 10;
 
@@ -89,7 +82,7 @@ export class Simulator {
         return { cleared: false, reason: 'OUT' };
       }
 
-      // INTERCEPT
+      // INTERCEPT（敵）
       for (const d of this.entities) {
         if (d.team !== 'ENEMY') continue;
         if (ball.dist(d.pos) <= BALL_R + d.radius) {
@@ -107,10 +100,9 @@ export class Simulator {
 
       if (inGoal) return { cleared: true, reason: 'GOAL' };
 
-      // 受け手に到達したらそこで終了（今回は「受けたら即シュート」ではなく、到達で終わり）
+      // ★修正点：受け手に到達したら「クリア」
       if (ball.dist(recv.pos) <= BALL_R + recv.radius) {
-        // 受けた地点がゴール内ならGOAL、それ以外は未クリア扱い（演出用）
-        return { cleared: false, reason: 'NONE' };
+        return { cleared: true, reason: 'GOAL' }; // reasonはUIで使ってないのでGOALのままでOK
       }
     }
 
