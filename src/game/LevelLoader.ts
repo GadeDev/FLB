@@ -2,8 +2,7 @@ import type { LevelData } from './Types';
 
 export async function loadLevels(): Promise<LevelData[]> {
   try {
-    // import.meta.env が使えるように型定義が必要ですが、
-    // ここでは安全に any キャストして回避します（ビルドエラー防止）
+    // エラー回避のための安全な書き方
     const env = (import.meta as any).env;
     const base = env?.BASE_URL || '/';
     const url = `${base}levels.json`;
@@ -13,7 +12,7 @@ export async function loadLevels(): Promise<LevelData[]> {
     return await res.json();
   } catch (e) {
     console.error(e);
-    // フォールバックデータ
+    // 読み込み失敗時の予備データ
     return [{
       id: 'L1', name: 'Fallback',
       p1: {x:140,y:620}, p2:{x:120,y:460}, p3:{x:260,y:500},
