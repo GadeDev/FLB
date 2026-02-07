@@ -1,6 +1,6 @@
 import './style.css';
 import { Renderer } from './game/Renderer';
-import { Simulator, SimResult, PITCH_W, PITCH_H } from './game/Simulator'; // 定数インポート
+import { Simulator, SimResult, PITCH_W, PITCH_H } from './game/Simulator';
 import { Vec2 } from './core/Vector2';
 import type { LevelData, Receiver, Tactic } from './game/Types';
 import { loadLevels } from './game/LevelLoader';
@@ -14,6 +14,7 @@ type UIState = {
   cleared: boolean;
   gameComplete: boolean;
   isRunning: boolean;
+  dragOffset: Vec2; // ドラッグ時の指ズレ補正用
 };
 
 const state: UIState = {
@@ -25,6 +26,7 @@ const state: UIState = {
   cleared: false,
   gameComplete: false,
   isRunning: false,
+  dragOffset: new Vec2(0, 0),
 };
 
 const canvas = document.querySelector<HTMLCanvasElement>('#c');
@@ -134,7 +136,6 @@ function handleResult(res: SimResult) {
       }, 1000);
     }
   } else {
-    // 日本語メッセージ
     const msgs: Record<string, string> = {
       'INTERCEPT': 'カットされました',
       'KEEPER_SAVE': 'キーパーに阻まれました',
@@ -199,51 +200,59 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// 座標変換とドラッグ処理（PC/スマホ共通）
-function canvasToLocal(e: PointerEvent): Vec2 {
-  if (!canvas) return new Vec2(0,0);
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = PITCH_W / rect.width;
-  const scaleY = PITCH_H / rect.height;
-  return new Vec2((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-}
-
-function pickEntity(x: number, y: number): 'P1' | 'P2' | 'P3' | null {
-  const pos = new Vec2(x, y);
+// エンティティ選択（当たり判定を大きくして操作性向上）
+function pickEntity(pos: Vec2): 'P1' | 'P2' | 'P3' | null {
   for (const id of ['P1', 'P2', 'P3'] as const) {
     const e = sim.entities.find(en => en.id === id);
     if (!e) continue;
-    // タップ判定を少し大きめに
-    if (pos.dist(e.pos) <= e.radius + 20) return id;
+    // 半径+30px (約46px) まで許容して掴みやすくする
+    if (pos.dist(e.pos) <= e.radius + 30) return id;
   }
   return null;
 }
 
-if (canvas) {
-  // mouse/touch両対応のpointerイベントを使用
+if (canvas && renderer) {
   canvas.addEventListener('pointerdown', e => {
     if (state.isRunning || state.gameComplete) return;
-    const p = canvasToLocal(e);
-    const id = pickEntity(p.x, p.y);
+    
+    // ★修正：Renderer経由で正確なゲーム内座標を取得
+    const p = renderer.getGamePosition(e.clientX, e.clientY);
+    const id = pickEntity(p);
+    
     if (id) {
       state.dragging = id;
       canvas.setPointerCapture(e.pointerId);
+      
+      // 掴んだ位置と中心のズレを保存（カクつき防止）
+      const ent = sim.entities.find(en => en.id === id);
+      if (ent) {
+        state.dragOffset = ent.pos.sub(p);
+        // 指で隠れないように少し上にずらすオフセットを加算しても良い
+         state.dragOffset.y -= 40; 
+      }
     }
   });
+
   canvas.addEventListener('pointermove', e => {
     if (!state.dragging) return;
-    const p = canvasToLocal(e);
+    
+    // ★修正：Renderer経由で座標変換
+    const p = renderer.getGamePosition(e.clientX, e.clientY);
     const ent = sim.entities.find(en => en.id === state.dragging);
     if (!ent) return;
     
+    // ズレを適用して移動
+    const targetPos = p.add(state.dragOffset);
+
     // 画面外に出ないようにクランプ
     const margin = 20;
-    const x = Math.max(margin, Math.min(PITCH_W - margin, p.x));
-    const y = Math.max(margin, Math.min(PITCH_H - margin, p.y));
+    const x = Math.max(margin, Math.min(PITCH_W - margin, targetPos.x));
+    const y = Math.max(margin, Math.min(PITCH_H - margin, targetPos.y));
     ent.pos = new Vec2(x, y);
 
     if (ent.id === 'P1') sim.ball = ent.pos.clone();
   });
+
   canvas.addEventListener('pointerup', e => {
     state.dragging = null;
     canvas.releasePointerCapture(e.pointerId);
