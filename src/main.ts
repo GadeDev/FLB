@@ -18,7 +18,7 @@ type UIState = {
   dragging: 'P1' | 'P2' | 'P3' | null;
   cleared: boolean;
   gameComplete: boolean;
-  isRunning: boolean; // アニメーション中かどうか
+  isRunning: boolean;
 };
 
 const state: UIState = {
@@ -37,7 +37,7 @@ const canvas = document.querySelector<HTMLCanvasElement>('#c');
 const renderer = canvas ? new Renderer(canvas) : null;
 const sim = new Simulator();
 
-// Resize
+// ★ここがPC表示修正のカギです★
 if (renderer) {
   renderer.resize();
   window.addEventListener('resize', () => renderer.resize());
@@ -74,7 +74,6 @@ function updateUI() {
     elLevelDisplay.textContent = `LV.${String(state.levelIndex + 1).padStart(2, '0')}`;
   }
   
-  // 実行中はボタン操作無効
   const disabled = state.isRunning;
   if (btnP2) {
     btnP2.classList.toggle('active', state.receiver === 'P2');
@@ -140,7 +139,6 @@ function handleResult(res: SimResult) {
       }, 900);
     }
   } else {
-    // 失敗
     const msgs: Record<string, string> = {
       'INTERCEPT': 'INTERCEPTED!',
       'OUT': 'OUT OF BOUNDS',
@@ -149,9 +147,7 @@ function handleResult(res: SimResult) {
     };
     showToast(msgs[res!] || 'MISS', false);
     
-    // 失敗時は少し待ってから元の位置に戻す
     setTimeout(() => {
-      // 配置をリセットするか、そのままにするか。今回はリセットしてリトライしやすくする
       sim.initFromLevel(getLevel()!, state.receiver, state.tactic);
       updateUI();
     }, 1000);
@@ -159,7 +155,6 @@ function handleResult(res: SimResult) {
 }
 
 // --- Events ---
-
 if (btnP2) btnP2.onclick = () => { if(!state.isRunning) { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); } };
 if (btnP3) btnP3.onclick = () => { if(!state.isRunning) { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); } };
 if (btnReset) btnReset.onclick = () => initLevel();
@@ -174,17 +169,15 @@ if (btnExec) btnExec.onclick = () => {
   }
   if (state.isRunning || state.cleared) return;
 
-  // アニメーション開始
   state.isRunning = true;
-  updateUI(); // ボタン無効化
+  updateUI();
 };
 
 // --- Loop ---
 function loop() {
   if (renderer && canvas) {
-    // アニメーション更新
     if (state.isRunning) {
-      sim.update(0.016); // 60FPS固定ステップ
+      sim.update(0.016);
       if (sim.result) {
         handleResult(sim.result);
       }
@@ -196,7 +189,6 @@ function loop() {
       renderer.drawPitch(lv.goal);
       renderer.drawEntities(sim.entities, sim.ball);
 
-      // 待機中だけパスガイドを出す
       if (!state.isRunning && !state.gameComplete) {
         const p1 = sim.entities.find(e => e.id === 'P1');
         const recv = sim.entities.find(e => e.id === state.receiver);
@@ -244,7 +236,6 @@ if (canvas) {
     const ent = sim.entities.find(en => en.id === state.dragging);
     if (!ent) return;
     
-    // 画面外に出ないようにクランプ
     const margin = 20;
     const x = Math.max(margin, Math.min(PITCH_W - margin, p.x));
     const y = Math.max(margin, Math.min(PITCH_H - margin, p.y));
