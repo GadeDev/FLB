@@ -5,9 +5,11 @@ import { Vec2 } from './core/Vector2';
 import type { LevelData, Receiver, Tactic } from './game/Types';
 import { loadLevels } from './game/LevelLoader';
 
+// Constants
 const PITCH_W = 360;
 const PITCH_H = 720;
 
+// State
 type UIState = {
   levels: LevelData[];
   levelIndex: number;
@@ -15,8 +17,6 @@ type UIState = {
   tactic: Tactic;
   dragging: 'P1' | 'P2' | 'P3' | null;
   cleared: boolean;
-  reason: 'GOAL' | 'INTERCEPT' | 'OUT' | 'NONE';
-  autoNextAt: number | null;
 };
 
 const state: UIState = {
@@ -26,58 +26,23 @@ const state: UIState = {
   tactic: 'PASS_TO_RECEIVER',
   dragging: null,
   cleared: false,
-  reason: 'NONE',
-  autoNextAt: null
 };
 
-const app = document.querySelector<HTMLDivElement>('#app')!;
-app.innerHTML = `
-  <div class="wrap">
-    <div class="topbar">
-      <div class="title">LINE BREAK LAB</div>
-      <div class="controls">
-        <button id="prev">Prev</button>
-        <div id="levelName" class="levelName">-</div>
-        <button id="next">Next</button>
-        <button id="reset">Reset</button>
-      </div>
-    </div>
-
-    <div class="canvasWrap">
-      <canvas id="c" width="${PITCH_W}" height="${PITCH_H}"></canvas>
-    </div>
-
-    <div class="bottom">
-      <div class="row">
-        <div class="label">Receiver</div>
-        <button class="chip" id="recvP2">P2</button>
-        <button class="chip" id="recvP3">P3</button>
-      </div>
-
-      <div class="row">
-        <div class="label">Play</div>
-        <button id="simulate" class="primary">Simulate</button>
-      </div>
-
-      <div id="msg" class="msg"></div>
-      <div class="hint">Drag P1/P2/P3 to reposition. Receiver = pass target.</div>
-    </div>
-  </div>
-`;
-
+// --- DOM Elements ---
+// HTMLにある要素を取得します
 const canvas = document.querySelector<HTMLCanvasElement>('#c')!;
 const renderer = new Renderer(canvas);
 const sim = new Simulator();
 
-const elPrev = document.querySelector<HTMLButtonElement>('#prev')!;
-const elNext = document.querySelector<HTMLButtonElement>('#next')!;
-const elReset = document.querySelector<HTMLButtonElement>('#reset')!;
-const elSim = document.querySelector<HTMLButtonElement>('#simulate')!;
-const elName = document.querySelector<HTMLDivElement>('#levelName')!;
-const elMsg = document.querySelector<HTMLDivElement>('#msg')!;
-const elP2 = document.querySelector<HTMLButtonElement>('#recvP2')!;
-const elP3 = document.querySelector<HTMLButtonElement>('#recvP3')!;
+const elLevelDisplay = document.getElementById('level-display')!;
+const btnReset = document.getElementById('btn-reset')!;
+const btnP2 = document.getElementById('btn-p2')!;
+const btnP3 = document.getElementById('btn-p3')!;
+const btnExec = document.getElementById('btn-exec')!;
+const btnNext = document.getElementById('btn-next')!;
+const msgToast = document.getElementById('msg-toast')!;
 
+// --- Helper Functions ---
 function clamp(v: number, a: number, b: number) {
   return Math.max(a, Math.min(b, v));
 }
@@ -86,88 +51,88 @@ function getLevel(): LevelData {
   return state.levels[state.levelIndex];
 }
 
-function applyReceiverUI() {
-  elP2.classList.toggle('active', state.receiver === 'P2');
-  elP3.classList.toggle('active', state.receiver === 'P3');
+function updateUI() {
+  const lv = getLevel();
+  elLevelDisplay.textContent = `LV.${String(state.levelIndex + 1).padStart(2, '0')}`;
+  
+  // レシーバーボタンの見た目更新
+  btnP2.classList.toggle('active', state.receiver === 'P2');
+  btnP3.classList.toggle('active', state.receiver === 'P3');
+
+  // クリア時のボタン切り替え
+  if (state.cleared) {
+    btnNext.classList.remove('hidden');
+    btnExec.style.display = 'none';
+  } else {
+    btnNext.classList.add('hidden');
+    btnExec.style.display = 'block';
+  }
 }
 
-function setMsg(text: string) {
-  elMsg.textContent = text;
+function showToast(msg: string, isGood: boolean) {
+  msgToast.textContent = msg;
+  msgToast.classList.remove('hidden');
+  msgToast.style.color = isGood ? '#00F2FF' : '#FF0055';
+  msgToast.style.borderColor = isGood ? '#00F2FF' : '#FF0055';
+  
+  setTimeout(() => {
+    msgToast.classList.add('hidden');
+  }, 1500);
 }
 
 function initLevel() {
   const lv = getLevel();
-  elName.textContent = `${lv.id}: ${lv.name}`;
   state.cleared = false;
-  state.reason = 'NONE';
-  state.autoNextAt = null;
-
   sim.initFromLevel(lv, state.receiver, state.tactic);
-  applyReceiverUI();
-  setMsg('');
+  updateUI();
 }
 
-function prevLevel() {
-  state.levelIndex = (state.levelIndex - 1 + state.levels.length) % state.levels.length;
-  initLevel();
-}
+// --- Event Listeners ---
 
-function nextLevel() {
+btnP2.onclick = () => { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); };
+btnP3.onclick = () => { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); };
+
+btnReset.onclick = () => initLevel();
+
+btnNext.onclick = () => {
   state.levelIndex = (state.levelIndex + 1) % state.levels.length;
   initLevel();
-}
-
-elPrev.onclick = () => prevLevel();
-elNext.onclick = () => nextLevel();
-elReset.onclick = () => initLevel();
-
-elP2.onclick = () => {
-  state.receiver = 'P2';
-  sim.receiver = 'P2';
-  applyReceiverUI();
-};
-elP3.onclick = () => {
-  state.receiver = 'P3';
-  sim.receiver = 'P3';
-  applyReceiverUI();
 };
 
-elSim.onclick = () => {
+btnExec.onclick = () => {
   const res = sim.run();
-  state.cleared = res.cleared;
-  state.reason = res.reason;
-
+  
   if (res.cleared) {
-    setMsg('CLEARED! Auto next...');
-    // 方式A：クリア時に自動で次へ（2秒後）
-    state.autoNextAt = performance.now() + 2000;
+    state.cleared = true;
+    showToast('GOAL!', true);
+    updateUI(); // 次へボタンを表示
   } else {
-    const map: Record<typeof res.reason, string> = {
-      GOAL: 'GOAL',
-      INTERCEPT: 'INTERCEPTED',
-      OUT: 'OUT',
-      NONE: '...'
-    };
-    setMsg(map[res.reason]);
+    showToast(res.reason, false);
   }
 };
 
-// ドラッグで選手配置
+// --- Canvas Drag Interaction ---
+// PC/スマホ両対応の座標計算
+function canvasToLocal(e: PointerEvent): Vec2 {
+  const rect = canvas.getBoundingClientRect();
+  // キャンバスの表示サイズと内部解像度(360x720)の比率を計算
+  const scaleX = PITCH_W / rect.width;
+  const scaleY = PITCH_H / rect.height;
+  return new Vec2(
+    (e.clientX - rect.left) * scaleX,
+    (e.clientY - rect.top) * scaleY
+  );
+}
+
 function pickEntity(x: number, y: number): 'P1' | 'P2' | 'P3' | null {
   const pos = new Vec2(x, y);
   for (const id of ['P1', 'P2', 'P3'] as const) {
     const e = sim.entities.find(en => en.id === id);
     if (!e) continue;
-    if (pos.dist(e.pos) <= e.radius + 8) return id;
+    // 当たり判定を少し大きめに（操作しやすく）
+    if (pos.dist(e.pos) <= e.radius + 15) return id;
   }
   return null;
-}
-
-function canvasToLocal(e: PointerEvent): Vec2 {
-  const rect = canvas.getBoundingClientRect();
-  const x = (e.clientX - rect.left) * (PITCH_W / rect.width);
-  const y = (e.clientY - rect.top) * (PITCH_H / rect.height);
-  return new Vec2(x, y);
 }
 
 canvas.addEventListener('pointerdown', e => {
@@ -184,45 +149,44 @@ canvas.addEventListener('pointermove', e => {
   const p = canvasToLocal(e);
   const ent = sim.entities.find(en => en.id === state.dragging);
   if (!ent) return;
-  ent.pos = new Vec2(clamp(p.x, 10, PITCH_W - 10), clamp(p.y, 10, PITCH_H - 10));
+
+  // 画面外に出ないように制限
+  ent.pos = new Vec2(clamp(p.x, 20, PITCH_W - 20), clamp(p.y, 20, PITCH_H - 20));
+
+  // P1を動かしたらボールもついてくる
   if (ent.id === 'P1') sim.ball = ent.pos.clone();
 });
 
 canvas.addEventListener('pointerup', e => {
   state.dragging = null;
-  try {
-    canvas.releasePointerCapture(e.pointerId);
-  } catch {}
+  canvas.releasePointerCapture(e.pointerId);
 });
 
+// --- Game Loop ---
 function loop() {
   renderer.clear();
 
   const lv = getLevel();
-  renderer.drawPitch(lv.goal);
-  renderer.drawEntities(sim.entities, sim.ball);
+  if (lv) {
+    renderer.drawPitch(lv.goal);
+    renderer.drawEntities(sim.entities, sim.ball);
 
-  const p1 = sim.entities.find(e => e.id === 'P1')!;
-  const recv = sim.entities.find(e => e.id === state.receiver)!;
-  renderer.drawArrow(p1.pos, recv.pos);
-
-  // HUD
-  const hud = `${lv.id}/${state.levels.length}  Receiver:${state.receiver}`;
-  renderer.drawHud(hud);
-
-  // Auto next
-  if (state.autoNextAt && performance.now() >= state.autoNextAt) {
-    state.autoNextAt = null;
-    nextLevel();
+    // パスラインのプレビュー（矢印）
+    const p1 = sim.entities.find(e => e.id === 'P1');
+    const recv = sim.entities.find(e => e.id === state.receiver);
+    if (p1 && recv) {
+      renderer.drawArrow(p1.pos, recv.pos);
+    }
   }
-
   requestAnimationFrame(loop);
 }
 
+// --- Boot ---
 async function boot() {
   state.levels = await loadLevels();
-  if (!state.levels.length) throw new Error('No levels');
-  initLevel();
-  loop();
+  if (state.levels.length > 0) {
+    initLevel();
+    loop();
+  }
 }
 boot();
