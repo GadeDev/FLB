@@ -10,7 +10,7 @@ type UIState = {
   levelIndex: number;
   receiver: Receiver;
   tactic: Tactic;
-  dragging: 'P2' | 'P3' | null; // P1を削除
+  dragging: 'P1' | 'P2' | 'P3' | null; // P1を復活
   cleared: boolean;
   gameComplete: boolean;
   isRunning: boolean;
@@ -33,9 +33,12 @@ const canvas = document.querySelector<HTMLCanvasElement>('#c');
 const renderer = canvas ? new Renderer(canvas) : null;
 const sim = new Simulator();
 
+// 初期化時に一度リサイズ
 if (renderer) {
   renderer.resize();
-  window.addEventListener('resize', () => renderer.resize());
+  window.addEventListener('resize', () => {
+    renderer.resize();
+  });
 }
 
 const elLevelDisplay = document.getElementById('level-display');
@@ -200,12 +203,12 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// ★修正：P1を操作対象から除外（P2, P3のみ）
-function pickEntity(pos: Vec2): 'P2' | 'P3' | null {
-  // P1を除外
-  for (const id of ['P2', 'P3'] as const) {
+// ★修正: P1も操作対象に戻す
+function pickEntity(pos: Vec2): 'P1' | 'P2' | 'P3' | null {
+  for (const id of ['P1', 'P2', 'P3'] as const) {
     const e = sim.entities.find(en => en.id === id);
     if (!e) continue;
+    // 当たり判定を大きめにする（操作しやすく）
     if (pos.dist(e.pos) <= e.radius + 30) return id;
   }
   return null;
@@ -225,7 +228,7 @@ if (canvas && renderer) {
       const ent = sim.entities.find(en => en.id === id);
       if (ent) {
         state.dragOffset = ent.pos.sub(p);
-        state.dragOffset.y -= 40; 
+        state.dragOffset.y -= 40; // 指で隠れないよう少し上に
       }
     }
   });
@@ -238,13 +241,14 @@ if (canvas && renderer) {
     if (!ent) return;
     
     const targetPos = p.add(state.dragOffset);
-
-    // 画面外クランプ
+    // 画面外に出ないよう制限
     const margin = 20;
     const x = Math.max(margin, Math.min(PITCH_W - margin, targetPos.x));
     const y = Math.max(margin, Math.min(PITCH_H - margin, targetPos.y));
     ent.pos = new Vec2(x, y);
-    // P1連動処理は削除
+
+    // P1を動かした場合、ボールも追従
+    if (ent.id === 'P1') sim.ball = ent.pos.clone();
   });
 
   canvas.addEventListener('pointerup', e => {
