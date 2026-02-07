@@ -35,19 +35,25 @@ export function fallbackLevel(): LevelData {
 }
 
 export async function loadFirstLevel(): Promise<LevelData> {
+  const levels = await loadLevels();
+  return levels[0] ?? fallbackLevel();
+}
+
+/**
+ * Load all levels from public/levels.json.
+ *
+ * IMPORTANT: use import.meta.env.BASE_URL so this works on GitHub Pages (/FLB/) and locally.
+ */
+export async function loadLevels(): Promise<LevelData[]> {
   try {
-    // IMPORTANT:
-    // GitHub Pages is hosted under /<repo>/ (e.g. /FLB/).
-    // Using an absolute path like '/levels.json' would break on Pages.
-    const base = (import.meta as any).env?.BASE_URL ?? '/';
-    const url = base.endsWith('/') ? `${base}levels.json` : `${base}/levels.json`;
+    const url = `${import.meta.env.BASE_URL}levels.json`;
     const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) return fallbackLevel();
+    if (!res.ok) return [fallbackLevel()];
     const file = (await res.json()) as LevelsFile;
-    if (!file.levels || file.levels.length === 0) return fallbackLevel();
-    return toLevel(file, 0);
+    if (!file.levels || file.levels.length === 0) return [fallbackLevel()];
+    return file.levels.map((_, i) => toLevel(file, i));
   } catch {
-    return fallbackLevel();
+    return [fallbackLevel()];
   }
 }
 
