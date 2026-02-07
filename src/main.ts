@@ -1,12 +1,9 @@
 import './style.css';
 import { Renderer } from './game/Renderer';
-import { Simulator, SimResult } from './game/Simulator';
+import { Simulator, SimResult, PITCH_W, PITCH_H } from './game/Simulator'; // 定数インポート
 import { Vec2 } from './core/Vector2';
 import type { LevelData, Receiver, Tactic } from './game/Types';
 import { loadLevels } from './game/LevelLoader';
-
-const PITCH_W = 360;
-const PITCH_H = 720;
 
 type UIState = {
   levels: LevelData[];
@@ -56,9 +53,9 @@ function updateUI() {
   if (!lv) return;
 
   if (state.gameComplete) {
-    if (elLevelDisplay) elLevelDisplay.textContent = "COMPLETE";
+    if (elLevelDisplay) elLevelDisplay.textContent = "全ステージクリア！";
     if (btnExec) {
-      btnExec.textContent = "RESTART";
+      btnExec.textContent = "最初から";
       btnExec.style.display = 'block';
       (btnExec as HTMLButtonElement).disabled = false;
     }
@@ -72,17 +69,18 @@ function updateUI() {
   
   const disabled = state.isRunning;
   if (btnP2) {
+    btnP2.textContent = "P2へパス";
     btnP2.classList.toggle('active', state.receiver === 'P2');
     (btnP2 as HTMLButtonElement).disabled = disabled;
   }
   if (btnP3) {
+    btnP3.textContent = "P3へパス";
     btnP3.classList.toggle('active', state.receiver === 'P3');
     (btnP3 as HTMLButtonElement).disabled = disabled;
   }
 
   if (btnExec) {
-    btnExec.textContent = "EXECUTE";
-    // クリア演出中はボタンを隠す
+    btnExec.textContent = "キックオフ";
     btnExec.style.display = state.cleared ? 'none' : 'block';
     (btnExec as HTMLButtonElement).disabled = disabled;
   }
@@ -99,7 +97,7 @@ function showToast(msg: string, isGood: boolean) {
   void msgToast.offsetWidth;
   msgToast.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
 
-  if (msg !== "CLEAR ALL") {
+  if (msg !== "全ステージクリア！") {
     setTimeout(() => {
       msgToast.classList.add('hidden');
     }, 1500);
@@ -126,26 +124,26 @@ function handleResult(res: SimResult) {
     const isLastLevel = state.levelIndex >= state.levels.length - 1;
     if (isLastLevel) {
       state.gameComplete = true;
-      showToast("CLEAR ALL", true);
+      showToast("全ステージクリア！", true);
       updateUI();
     } else {
-      showToast("GOAL!", true);
-      // 1秒後に次のレベルへ
+      showToast("ゴール！", true);
       setTimeout(() => {
         state.levelIndex++;
         initLevel();
       }, 1000);
     }
   } else {
+    // 日本語メッセージ
     const msgs: Record<string, string> = {
-      'INTERCEPT': 'INTERCEPTED!',
-      'OUT': 'OUT OF BOUNDS',
-      'OFFSIDE': 'OFFSIDE!',
-      'NONE': 'TIME UP'
+      'INTERCEPT': 'カットされました',
+      'KEEPER_SAVE': 'キーパーに阻まれました',
+      'OUT': 'ラインを割りました',
+      'OFFSIDE': 'オフサイド',
+      'NONE': 'タイムアップ'
     };
-    showToast(msgs[res!] || 'MISS', false);
+    showToast(msgs[res!] || '失敗', false);
     
-    // 失敗時は1秒後にリセット
     setTimeout(() => {
       const lv = getLevel();
       if(lv) {
@@ -201,6 +199,7 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
+// 座標変換とドラッグ処理（PC/スマホ共通）
 function canvasToLocal(e: PointerEvent): Vec2 {
   if (!canvas) return new Vec2(0,0);
   const rect = canvas.getBoundingClientRect();
@@ -214,12 +213,14 @@ function pickEntity(x: number, y: number): 'P1' | 'P2' | 'P3' | null {
   for (const id of ['P1', 'P2', 'P3'] as const) {
     const e = sim.entities.find(en => en.id === id);
     if (!e) continue;
-    if (pos.dist(e.pos) <= e.radius + 15) return id;
+    // タップ判定を少し大きめに
+    if (pos.dist(e.pos) <= e.radius + 20) return id;
   }
   return null;
 }
 
 if (canvas) {
+  // mouse/touch両対応のpointerイベントを使用
   canvas.addEventListener('pointerdown', e => {
     if (state.isRunning || state.gameComplete) return;
     const p = canvasToLocal(e);
@@ -235,10 +236,7 @@ if (canvas) {
     const ent = sim.entities.find(en => en.id === state.dragging);
     if (!ent) return;
     
-    // 味方同士のコリジョン（簡易：単純に配置制限）
-    // 本来は衝突解決が必要ですが、配置フェーズでの簡易制限として
-    // 他の味方との距離チェックを入れると良いですが、
-    // ここではまずビルドを通すことを優先し、シンプルなクランプのみにします。
+    // 画面外に出ないようにクランプ
     const margin = 20;
     const x = Math.max(margin, Math.min(PITCH_W - margin, p.x));
     const y = Math.max(margin, Math.min(PITCH_H - margin, p.y));
