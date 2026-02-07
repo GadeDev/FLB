@@ -38,14 +38,19 @@ canvas {
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;
+  pointer-events: none; /* レイヤー全体はクリックを透過 */
   z-index: 10;
-  /* セーフエリア */
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-#ui-layer > * {
+/* ★重要：コンテナ自体もクリックを透過させる */
+header, #top-controls, #bottom-controls {
+  pointer-events: none;
+}
+
+/* ★重要：実際に操作したいボタンやバッジだけクリック有効にする */
+button, .level-badge, #btn-reset {
   pointer-events: auto;
 }
 
@@ -59,7 +64,7 @@ header {
   align-items: center;
   padding: 0 15px;
   box-sizing: border-box;
-  z-index: 20; /* パスボタンより上に */
+  z-index: 20;
 }
 
 .level-badge {
@@ -82,10 +87,10 @@ header {
   justify-content: center;
 }
 
-/* ★パスボタン配置（ゴールネット脇） */
+/* パスボタン配置 */
 #top-controls {
   position: absolute;
-  top: 60px; /* ヘッダーの下、ゴールネットの横あたり */
+  top: 60px;
   left: 0;
   width: 100%;
   display: flex;
@@ -117,7 +122,7 @@ header {
   box-shadow: 0 0 15px rgba(0, 180, 255, 0.6);
 }
 
-/* キックオフボタン（下部中央） */
+/* キックオフボタン */
 #bottom-controls {
   position: absolute;
   bottom: 40px;
@@ -142,7 +147,6 @@ header {
   transform: scale(0.95);
 }
 
-/* 次へボタン */
 #btn-next {
   position: absolute;
   bottom: 120px;
@@ -157,6 +161,7 @@ header {
   box-shadow: 0 5px 20px rgba(241, 196, 15, 0.5);
   font-weight: bold;
   z-index: 30;
+  pointer-events: auto; /* これも忘れずに */
 }
 
 .toast {
