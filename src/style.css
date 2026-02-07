@@ -1,177 +1,231 @@
 :root {
-  --bg: #08131F;
+  --bg-app: #08131F;
+  --bg-body: #02050a; /* PC背景 */
   --panel: #111e2e;
   --primary: #00F2FF;
   --accent: #00FF9D;
-  --danger: #FF0055;
   --text: #ffffff;
-  --text-muted: #8b9bb4;
-  --font-main: system-ui, -apple-system, sans-serif;
+  --text-sub: #8b9bb4;
+  --font-main: 'Inter', 'Noto Sans JP', sans-serif;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 * { box-sizing: border-box; }
-html, body { width: 100%; height: 100%; margin: 0; padding: 0; }
 
 body {
-  background-color: var(--bg);
+  margin: 0;
+  background-color: var(--bg-body);
   color: var(--text);
   font-family: var(--font-main);
-  overflow: hidden; /* スクロール禁止 */
+  overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+  display: flex;
+  justify-content: center; /* PCで中央寄せ */
+  height: 100vh;
 }
 
-/* --- レイアウト構造 --- */
 #app {
   width: 100%;
   height: 100%;
+  display: flex;
+  justify-content: center;
 }
 
-.wrap {
+/* スマホ型コンテナ（PC対策の肝） */
+.mobile-container {
+  width: 100%;
+  max-width: 480px; /* これ以上横に伸びない */
+  height: 100%;
+  background: var(--bg-app);
   display: flex;
   flex-direction: column;
-  height: 100%;
-  max-width: 600px; /* PCで見てもスマホ幅に */
-  margin: 0 auto;
-  background: #0b1622;
-  box-shadow: 0 0 50px rgba(0,0,0,0.5);
+  position: relative;
+  box-shadow: 0 0 50px rgba(0,0,0,0.5); /* 影をつけて浮き上がらせる */
 }
 
-/* 1. 上部バー */
-.topbar {
+/* --- ヘッダー --- */
+.top-bar {
   height: 60px;
+  padding: var(--safe-top) 16px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  background: var(--panel);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: rgba(17, 30, 46, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
   z-index: 10;
 }
 
-.title {
-  font-weight: 800;
-  font-size: 16px;
-  letter-spacing: 0.05em;
-  color: var(--primary);
-}
-
-.controls {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.controls button {
-  background: rgba(255,255,255,0.1);
-  border: none;
-  color: #fff;
-  padding: 6px 12px;
-  border-radius: 6px;
+.level-badge {
   font-size: 12px;
-  cursor: pointer;
-}
-.levelName {
-  font-size: 14px;
-  font-weight: bold;
-  min-width: 80px;
-  text-align: center;
+  font-weight: 900;
+  color: var(--primary);
+  background: rgba(0, 242, 255, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
-/* 2. ゲーム画面（ここが消えていました） */
-.canvasWrap {
-  flex: 1; /* 残りのスペースを全部使う */
-  position: relative;
-  overflow: hidden;
-  background: #060d13;
+.app-title {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: white;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+/* --- ゲーム画面 --- */
+.canvas-wrapper {
+  flex: 1; /* 余った高さを全部使う */
+  position: relative;
+  background: radial-gradient(circle at center, #0c1a2b 0%, #08131F 100%);
+  overflow: hidden;
 }
 
 canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* 画面内に綺麗に収める */
   display: block;
-  /* 比率を保って最大表示 */
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain; 
   touch-action: none;
 }
 
-/* 3. 下部操作パネル */
-.bottom {
-  padding: 20px 16px 30px;
-  background: var(--panel);
-  border-top: 1px solid rgba(255,255,255,0.1);
+/* --- 操作ガイド --- */
+.instruction-box {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 8px 0;
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  z-index: 10;
-}
-
-.row {
-  display: flex;
+  justify-content: center;
   align-items: center;
   gap: 12px;
+  font-size: 11px;
+  color: var(--text-sub);
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.step { display: flex; align-items: center; gap: 6px; }
+.step-num {
+  background: var(--text-sub);
+  color: #000;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 16px;
+  font-weight: bold;
+  font-size: 10px;
 }
 
-.label {
-  font-size: 12px;
-  color: var(--text-muted);
-  width: 60px;
-  font-weight: 600;
+/* --- フッター操作パネル --- */
+.bottom-panel {
+  padding: 16px 16px calc(20px + var(--safe-bottom));
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
 }
 
-/* ボタンデザイン */
-button {
-  cursor: pointer;
-  font-family: inherit;
-  transition: transform 0.1s;
+.control-row {
+  display: flex;
+  gap: 12px;
+  height: 50px;
 }
-button:active { transform: scale(0.96); }
 
-/* 受けて選択ボタン */
-.chip {
+.toggle-group {
   flex: 1;
-  padding: 12px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 12px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+}
+.label-mini {
+  position: absolute;
+  top: -8px; left: 8px;
+  background: var(--panel);
+  padding: 0 4px;
+  font-size: 9px;
+  color: var(--text-sub);
+  font-weight: bold;
+}
+.toggle-buttons { display: flex; height: 100%; width: 100%; }
+
+.toggle-btn {
+  flex: 1;
+  border: none;
   background: transparent;
-  border: 1px solid rgba(255,255,255,0.2);
-  color: var(--text-muted);
+  color: var(--text-sub);
+  font-weight: bold;
+  font-size: 14px;
   border-radius: 8px;
-  font-weight: 700;
+  cursor: pointer;
 }
-.chip.active {
-  background: rgba(0, 242, 255, 0.15);
-  border-color: var(--primary);
-  color: var(--primary);
-  box-shadow: 0 0 10px rgba(0, 242, 255, 0.2);
+.toggle-btn.active {
+  background: var(--primary);
+  color: #000;
+  box-shadow: 0 0 10px rgba(0, 242, 255, 0.3);
 }
 
-/* 実行ボタン */
-.primary {
-  flex: 1;
+.exec-btn {
+  flex: 1.2;
   background: var(--accent);
   color: #000;
   border: none;
-  border-radius: 8px;
-  padding: 14px;
-  font-weight: 800;
+  border-radius: 12px;
   font-size: 16px;
+  font-weight: 900;
   letter-spacing: 0.05em;
-  box-shadow: 0 4px 15px rgba(0, 255, 157, 0.3);
+  cursor: pointer;
+  box-shadow: 0 4px 0 #00b36e; /* 立体感 */
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.exec-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 #00b36e;
 }
 
-/* メッセージエリア */
-.msg {
-  height: 24px;
-  text-align: center;
+.next-btn {
+  width: 100%;
+  padding: 12px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: white;
+  border-radius: 8px;
   font-weight: bold;
-  color: var(--danger);
-  text-shadow: 0 0 5px rgba(255, 0, 85, 0.5);
+  cursor: pointer;
+}
+.hidden { display: none; }
+
+/* トースト通知 */
+.toast {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.8);
+  padding: 16px 32px;
+  border-radius: 50px;
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--primary);
+  border: 2px solid var(--primary);
+  pointer-events: none;
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-.hint {
-  text-align: center;
-  font-size: 11px;
-  color: var(--text-muted);
-  opacity: 0.7;
+@keyframes popIn {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
