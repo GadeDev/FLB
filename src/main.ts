@@ -35,6 +35,17 @@ const canvas = document.querySelector<HTMLCanvasElement>('#c');
 const renderer = canvas ? new Renderer(canvas) : null;
 const sim = new Simulator();
 
+// ★★★ 追加：画面サイズに合わせて描画領域を調整 ★★★
+if (renderer) {
+  // 起動時に一度サイズを合わせる
+  renderer.resize();
+  
+  // ウィンドウのサイズが変わったら（PCで枠を変えたときなど）合わせ直す
+  window.addEventListener('resize', () => {
+    renderer.resize();
+  });
+}
+
 const elLevelDisplay = document.getElementById('level-display');
 const btnReset = document.getElementById('btn-reset');
 const btnP2 = document.getElementById('btn-p2');
