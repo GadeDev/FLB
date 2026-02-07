@@ -4,7 +4,7 @@ import { Vec2 } from './core/Vector2';
 import { AudioSynth } from './core/AudioSynth';
 import { Renderer } from './game/Renderer';
 import { Simulator, type SimResult } from './game/Simulator';
-import { loadFirstLevel, Placement } from './game/LevelLoader';
+import { loadLevels, Placement } from './game/LevelLoader';
 import type { EditStateSnapshot, LevelData } from './game/Types';
 
 type Mode = 'MOVE' | 'PASS';
@@ -16,6 +16,10 @@ const audio = new AudioSynth();
 const simulator = new Simulator(12345);
 
 let level: LevelData | null = null;
+let levels: LevelData[] = [];
+let levelIndex = 0;
+
+let autoNextTimer: number | null = null;
 
 let state: State = 'EDIT';
 let mode: Mode = 'MOVE';
@@ -40,6 +44,13 @@ const elResultReason = document.getElementById('result-reason') as HTMLParagraph
 const elTactic = document.getElementById('tactic-tag') as HTMLDivElement;
 const elLevelBadge = document.getElementById('level-badge') as HTMLDivElement;
 const elHint = document.getElementById('hint-text') as HTMLSpanElement;
+
+function clearAutoNext() {
+  if (autoNextTimer !== null) {
+    window.clearTimeout(autoNextTimer);
+    autoNextTimer = null;
+  }
+}
 
 function snap(): EditStateSnapshot {
   const ents = simulator.entities;
@@ -67,7 +78,6 @@ function restore(s: EditStateSnapshot) {
 }
 
 function pushHistory() {
-  // avoid stacking duplicates on every move tick
   if (history.length === 0) history.push(snap());
   else {
     const last = history[history.length - 1];
@@ -107,8 +117,44 @@ function setTiming(t: 'EARLY' | 'LATE') {
 
 function updateBadges() {
   if (!level) return;
-  elLevelBadge.textContent = level.label;
+  const suffix = levels.length >= 2 ? `  ${levelIndex + 1}/${levels.length}` : '';
+  elLevelBadge.textContent = `${level.label}${suffix}`;
   elTactic.textContent = `TACTIC: ${level.tactic.replace('_', ' ')}`;
+}
+
+function makeDefaultSnapshot(): EditStateSnapshot {
+  const p1 = Placement.clampToRect(new Vec2(500, 140), Placement.p1Rect);
+  const p2 = Placement.clampToRect(new Vec2(460, 330), Placement.p23Rect);
+  const p3 = Placement.clampToRect(new Vec2(540, 330), Placement.p23Rect);
+  return { p1, p2, p3, receiver: 'P2' };
+}
+
+function loadLevelAt(index: number) {
+  if (levels.length === 0) return;
+  clearAutoNext();
+
+  levelIndex = ((index % levels.length) + levels.length) % levels.length;
+  level = levels[levelIndex];
+
+  history = [];
+  receiver = 'P2';
+  timing = 'EARLY';
+  initialSnapshot = makeDefaultSnapshot();
+
+  hideResult();
+  simulator.reset(level, { p1: initialSnapshot.p1, p2: initialSnapshot.p2, p3: initialSnapshot.p3 }, receiver);
+  simulator.setTiming(timing);
+
+  state = 'EDIT';
+  setMode('MOVE');
+  setTiming('EARLY');
+  updateBadges();
+  updateHint();
+}
+
+function nextLevel() {
+  if (levels.length === 0) return;
+  loadLevelAt(levelIndex + 1);
 }
 
 function findAllyAt(pos: Vec2): 'P1' | 'P2' | 'P3' | null {
@@ -124,7 +170,6 @@ function findAllyAt(pos: Vec2): 'P1' | 'P2' | 'P3' | null {
 }
 
 function applyConstraints() {
-  // clamp by role
   const p1 = simulator.entities.find(e => e.id === 'P1')!;
   const p2 = simulator.entities.find(e => e.id === 'P2')!;
   const p3 = simulator.entities.find(e => e.id === 'P3')!;
@@ -132,7 +177,6 @@ function applyConstraints() {
   p2.pos = Placement.clampToRect(p2.pos, Placement.p23Rect);
   p3.pos = Placement.clampToRect(p3.pos, Placement.p23Rect);
 
-  // separate overlaps (simple)
   const players = [p1, p2, p3];
   for (let iter = 0; iter < 3; iter++) {
     for (let i = 0; i < players.length; i++) {
@@ -151,7 +195,6 @@ function applyConstraints() {
     }
   }
 
-  // clamp again
   p1.pos = Placement.clampToRect(p1.pos, Placement.p1Rect);
   p2.pos = Placement.clampToRect(p2.pos, Placement.p23Rect);
   p3.pos = Placement.clampToRect(p3.pos, Placement.p23Rect);
@@ -170,7 +213,6 @@ function onPointerDown(ev: PointerEvent) {
       audio.play('tap');
     }
   } else {
-    // PASS mode
     const id = findAllyAt(pos);
     if (id === 'P1') {
       pushHistory();
@@ -225,7 +267,9 @@ function startRun() {
   if (!level) return;
   if (state !== 'EDIT') return;
 
-  // lock pass target to current receiver and positions
+  clearAutoNext();
+  hideResult();
+
   applyConstraints();
   simulator.setEdit(receiver);
   simulator.setTiming(timing);
@@ -249,6 +293,18 @@ function showResult(res: SimResult) {
   elResult.classList.remove('hidden');
 
   if (res === 'GOAL') {
+    elRetry.textContent = 'NEXT';
+    elRetry.onclick = () => nextLevel();
+    clearAutoNext();
+    autoNextTimer = window.setTimeout(() => {
+      nextLevel();
+    }, 900);
+  } else {
+    elRetry.textContent = 'RETRY';
+    elRetry.onclick = () => retry();
+  }
+
+  if (res === 'GOAL') {
     audio.play('goal');
     if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
   } else {
@@ -263,8 +319,8 @@ function hideResult() {
 
 function retry() {
   if (!level || !initialSnapshot) return;
+  clearAutoNext();
   hideResult();
-  // keep current edit snapshot (so player can tweak after failure)
   const s = snap();
   simulator.reset(level, { p1: s.p1, p2: s.p2, p3: s.p3 }, s.receiver);
   state = 'EDIT';
@@ -290,31 +346,16 @@ function resetAll() {
 }
 
 async function init() {
-  level = await loadFirstLevel();
+  levels = await loadLevels();
+  if (levels.length === 0) levels = [];
+  loadLevelAt(0);
 
-  // initial placements
-  const p1 = Placement.clampToRect(new Vec2(500, 140), Placement.p1Rect);
-  const p2 = Placement.clampToRect(new Vec2(460, 330), Placement.p23Rect);
-  const p3 = Placement.clampToRect(new Vec2(540, 330), Placement.p23Rect);
-  receiver = 'P2';
-
-  initialSnapshot = { p1, p2, p3, receiver };
-  simulator.reset(level, { p1, p2, p3 }, receiver);
-
-  updateBadges();
-  setMode('MOVE');
-  setTiming('EARLY');
-  updateHint();
-
-  // UI
   elMode.addEventListener('click', () => setMode(mode === 'MOVE' ? 'PASS' : 'MOVE'));
   elUndo.addEventListener('click', undo);
   elReset.addEventListener('click', resetAll);
   elTiming.addEventListener('click', () => setTiming(timing === 'EARLY' ? 'LATE' : 'EARLY'));
   elRun.addEventListener('click', startRun);
-  elRetry.addEventListener('click', retry);
 
-  // Input
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
