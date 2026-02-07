@@ -11,7 +11,6 @@ export class Renderer {
     this.ctx = canvas.getContext('2d', { alpha: false })!;
   }
 
-  // 画面リサイズ機能
   resize() {
     const dpr = window.devicePixelRatio || 1;
     const rect = this.canvas.parentElement?.getBoundingClientRect();
@@ -36,7 +35,7 @@ export class Renderer {
     this.ctx.save();
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.fillStyle = '#08131F'; 
+    this.ctx.fillStyle = '#08131F';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.restore();
   }
@@ -93,7 +92,6 @@ export class Renderer {
     this.ctx.fillStyle = color;
     this.ctx.fill();
     this.ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-    this.ctx.lineWidth = 2;
     this.ctx.stroke();
   }
 }
