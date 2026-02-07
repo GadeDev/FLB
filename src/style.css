@@ -1,7 +1,7 @@
 :root {
   font-family: 'Inter', sans-serif;
   color-scheme: dark;
-  background-color: #000; /* 完全な黒 */
+  background-color: #000;
   color: #fff;
 }
 
@@ -10,91 +10,60 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
-  overflow: hidden;
-  /* 背景をスタジアムの芝生っぽい暗い緑のグラデーションに */
-  background: radial-gradient(circle, #0f2027 0%, #203a43 50%, #2c5364 100%);
+  overflow: hidden; /* スクロール禁止 */
+  /* スタジアム風グラデーション */
+  background: radial-gradient(circle at center, #1e2a3a 0%, #000000 100%);
 }
 
 #app {
-  width: 100vw;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  width: 100%;
+  height: 100%;
   position: relative;
   overflow: hidden;
 }
 
-/* ゲーム画面（キャンバス） */
+/* ゲーム画面 */
 canvas {
   display: block;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   touch-action: none; 
   user-select: none;
-  
-  /* 影をつけて浮き上がらせる */
-  box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.8);
 }
 
-/* UIオーバーレイ */
+/* UIレイヤー */
 #ui-layer {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 20px;
-  box-sizing: border-box;
+  pointer-events: none; /* 下のゲームを操作可能に */
   z-index: 100;
+  
+  /* セーフエリア対応（iPhone Xなど） */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: border-box;
 }
 
 #ui-layer > * {
   pointer-events: auto;
 }
 
-/* ボタン（操作しやすいサイズとデザイン） */
-button {
-  background: rgba(20, 20, 20, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  backdrop-filter: blur(4px);
-  transition: transform 0.1s;
-}
-
-button:active {
-  transform: scale(0.95);
-}
-
-button.active {
-  background: rgba(0, 168, 255, 0.8);
-  border-color: #00a8ff;
-  box-shadow: 0 0 15px rgba(0, 168, 255, 0.5);
-}
-
-#btn-exec {
-  background: #27ae60;
-  border: none;
-  font-size: 20px;
-  padding: 16px 50px;
-  border-radius: 30px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-  margin-bottom: 20px;
-}
-
+/* ヘッダー（上部に固定） */
 header {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
   display: flex;
   justify-content: space-between;
-  width: 100%;
+  align-items: center;
+  padding: 0 20px;
   max-width: 600px;
   margin: 0 auto;
 }
@@ -102,25 +71,78 @@ header {
 .level-info {
   font-size: 24px;
   font-weight: 900;
-  text-shadow: 0 2px 5px rgba(0,0,0,0.8);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  font-family: monospace;
 }
 
-/* 通知 */
-.toast {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(0, 0, 0, 0.9);
-  border: 2px solid #fff;
-  color: #fff;
-  padding: 20px 40px;
-  border-radius: 12px;
-  font-size: 28px;
+/* ボタン共通 */
+button {
+  background: rgba(20, 30, 40, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #eee;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
   font-weight: bold;
-  pointer-events: none;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+button.active {
+  background: rgba(0, 168, 255, 0.9);
+  border-color: #00a8ff;
+  color: #fff;
+  box-shadow: 0 0 15px rgba(0, 168, 255, 0.6);
+}
+
+/* キックオフボタン（画面下部に絶対配置で固定） */
+#btn-exec {
+  position: absolute;
+  bottom: 40px; /* 下から40pxの位置に固定 */
+  left: 50%;
+  transform: translateX(-50%); /* 左右中央寄せ */
+  
+  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  border: none;
+  font-size: 20px;
+  padding: 16px 60px;
+  border-radius: 50px;
+  color: #fff;
+  box-shadow: 0 5px 20px rgba(46, 204, 113, 0.5);
   white-space: nowrap;
 }
+
+#btn-exec:active {
+  transform: translateX(-50%) scale(0.95);
+}
+
+#btn-exec:disabled {
+  background: #555;
+  box-shadow: none;
+  color: #888;
+}
+
+/* 通知トースト */
+.toast {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.95);
+  border: 2px solid #f1c40f;
+  color: #f1c40f;
+  padding: 20px 40px;
+  border-radius: 12px;
+  font-size: 24px;
+  font-weight: bold;
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+  z-index: 200;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+
 .hidden { display: none !important; }
 
 @keyframes popIn {
