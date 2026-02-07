@@ -73,12 +73,12 @@ export class Simulator {
         
         const offsideLine = enemyYs.length >= 2 ? enemyYs[1] : (enemyYs[0] || 9999);
 
-        if (recv.pos.y > offsideLine) {
+        // 少し緩めの判定（+10pxまで許容）
+        if (recv.pos.y > offsideLine + 10) {
           this.result = 'OFFSIDE';
           return;
         }
 
-        // パス発射
         this.phase = 'PASS';
         const dist = recv.pos.dist(p1.pos);
         const arrivalTime = dist / BALL_PASS_SPD;
@@ -91,7 +91,7 @@ export class Simulator {
     } else if (this.phase === 'PASS') {
       this.ball = this.ball.add(this.ballVel.mul(dt));
 
-      if (this.ball.dist(recv.pos) <= BALL_R + recv.radius + 8) {
+      if (this.ball.dist(recv.pos) <= BALL_R + recv.radius + 15) {
         this.phase = 'SHOOT';
         const goalCenter = new Vec2(this.goal.x + this.goal.w / 2, this.goal.y + this.goal.h / 2);
         this.ballVel = goalCenter.sub(this.ball).norm().mul(BALL_SHOOT_SPD);
