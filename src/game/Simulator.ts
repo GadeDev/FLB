@@ -8,9 +8,9 @@ const PLAYER_R = 16;
 const DEF_R = 20;
 const GK_R = 18;
 
-// ★修正：縦幅を短くして「敵陣のみ」にする（スマホで大きく表示するため）
+// フィールドサイズ（敵陣のみ）
 export const PITCH_W = 360;
-export const PITCH_H = 600; // 720 -> 600
+export const PITCH_H = 600;
 
 const PLAYER_SPD = 220;
 const BALL_PASS_SPD = 420;
@@ -48,10 +48,11 @@ export class Simulator {
       ...level.defenders.map((d, i) => mkEnt(`D${i+1}`, 'DEF', 'ENEMY', d, d.r ?? DEF_R))
     ];
 
-    // GK追加
+    // ★GKの確実な追加
     if (level.gk) {
       this.entities.push(mkEnt('GK', 'GK', 'ENEMY', level.gk, GK_R));
     } else {
+      // データになくても強制追加
       this.entities.push(mkEnt('GK', 'GK', 'ENEMY', { x: this.goal.x + this.goal.w / 2, y: 30 }, GK_R));
     }
 
@@ -72,10 +73,10 @@ export class Simulator {
       recv.pos.y -= PLAYER_SPD * dt;
     }
 
-    // 2. GKの動き
+    // 2. GKの動き（横移動でボールを追う）
     if (gk && this.phase !== 'WAIT') {
         const targetX = Math.max(this.goal.x, Math.min(this.goal.x + this.goal.w, this.ball.x));
-        gk.pos.x += (targetX - gk.pos.x) * 5 * dt;
+        gk.pos.x += (targetX - gk.pos.x) * 6 * dt; // 少し反応速度アップ
     }
 
     // 3. フェーズ進行
@@ -83,7 +84,7 @@ export class Simulator {
       this.ball = p1.pos.clone();
 
       if (this.time >= KICK_DELAY) {
-        // オフサイド判定（GK除くDFの中で一番後ろ）
+        // オフサイド判定
         const defendersY = this.entities
           .filter(e => e.team === 'ENEMY' && e.type !== 'GK')
           .map(e => e.pos.y)
@@ -119,7 +120,6 @@ export class Simulator {
     }
 
     // 4. 判定
-    // OUT判定（下限を少し広げる）
     if (this.ball.x < 0 || this.ball.x > PITCH_W || this.ball.y < -50 || this.ball.y > PITCH_H + 50) {
       this.result = 'OUT';
       return;
