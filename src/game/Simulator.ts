@@ -20,7 +20,6 @@ export class Simulator {
   entities: Entity[] = [];
   ball: Vec2 = new Vec2(0, 0);
   receiver: Receiver = 'P2';
-  // 戦術変数を保持
   tactic: Tactic = 'MAN_MARK';
   goal = { x: 0, y: 0, w: 0, h: 0 };
   
@@ -30,10 +29,9 @@ export class Simulator {
   private phase: 'WAIT' | 'PASS' | 'SHOOT' = 'WAIT';
   private ballVel = new Vec2(0, 0);
 
-  // tactic引数を必ず使用する
   initFromLevel(level: LevelData, receiver: Receiver, tactic: Tactic) {
     this.receiver = receiver;
-    this.tactic = tactic; // ここで保存して後で使う
+    this.tactic = tactic;
     this.goal = level.goal;
     this.result = null;
     this.time = 0;
@@ -67,7 +65,7 @@ export class Simulator {
     const p1 = this.entities.find(e => e.id === 'P1')!;
     const recv = this.entities.find(e => e.id === this.receiver)!;
     
-    // デコイ（囮）の取得：受け手がP2ならP3、P3ならP2
+    // デコイの取得
     const decoyId = this.receiver === 'P2' ? 'P3' : 'P2';
     const decoy = this.entities.find(e => e.id === decoyId)!;
     
@@ -75,45 +73,43 @@ export class Simulator {
     const prevBall = this.ball.clone();
 
     // 1. 選手の移動（ラン）
+    
+    // 受け手：シュートフェーズ以外は前進
     if (this.phase !== 'SHOOT') {
-      // 受け手：ゴールへ直進
       recv.pos.y -= PLAYER_SPD * dt;
-
-      // ★デコイラン実装
-      // 少し遅れて斜めに走る（スペースを作る動き）
-      const decoySpd = PLAYER_SPD * 0.9;
-      decoy.pos.y -= decoySpd * dt;
-      
-      // 受け手から離れる方向へ少し開く（X方向の動き）
-      const spreadDir = (decoy.pos.x < recv.pos.x) ? -1 : 1;
-      decoy.pos.x += spreadDir * 40 * dt; // 横移動速度
-
-      // 画面外に出ないようクランプ
-      const margin = 20;
-      decoy.pos.x = Math.max(margin, Math.min(PITCH_W - margin, decoy.pos.x));
     }
 
-    // 2. DFのAI（戦術によって動きを変える）
+    // ★修正：デコイはフェーズに関係なく（resultが出るまで）動き続ける
+    // 少し遅れて斜めに走る（スペースを作る動き）
+    const decoySpd = PLAYER_SPD * 0.9;
+    decoy.pos.y -= decoySpd * dt;
+    
+    // 横移動（速度アップ 40 -> 60）
+    const spreadDir = (decoy.pos.x < recv.pos.x) ? -1 : 1;
+    decoy.pos.x += spreadDir * 60 * dt;
+
+    // 画面外に出ないようクランプ
+    const margin = 20;
+    decoy.pos.x = Math.max(margin, Math.min(PITCH_W - margin, decoy.pos.x));
+
+
+    // 2. DFのAI（シュート中は動かないままでOK）
     if (this.phase !== 'SHOOT') {
       const defenders = this.entities.filter(e => e.type === 'DEF');
       for (const def of defenders) {
         if (this.tactic === 'MAN_MARK') {
-          // マンツーマン：受け手に吸い寄せられる
+          // マンツーマン
           const dx = recv.pos.x - def.pos.x;
-          // X方向のみ少し反応させる（Yはライン維持のためあまり動かさない）
           if (Math.abs(dx) < 100) {
             def.pos.x += Math.sign(dx) * 30 * dt;
           }
         } else {
-          // ZONAL（ゾーン）：デコイにも釣られる（中途半端な位置を守る）
-          // 最寄りの味方（受け手 or デコイ）を探す
+          // ゾーン
           const distRecv = def.pos.dist(recv.pos);
           const distDecoy = def.pos.dist(decoy.pos);
-          
           const target = (distDecoy < distRecv) ? decoy : recv;
           const dx = target.pos.x - def.pos.x;
           
-          // ゾーンなので反応は鈍いが、近くに来た方を追う
           if (Math.abs(dx) < 80) {
             def.pos.x += Math.sign(dx) * 20 * dt;
           }
@@ -132,14 +128,17 @@ export class Simulator {
       this.ball = p1.pos.clone();
 
       if (this.time >= KICK_DELAY) {
-        // オフサイド判定
+        // ★修正：オフサイド判定
+        // GKを除くDFのY座標（ゴールに近い順＝小さい順）
         const defendersY = this.entities
           .filter(e => e.team === 'ENEMY' && e.type !== 'GK')
           .map(e => e.pos.y)
           .sort((a, b) => a - b);
         
-        const offsideLine = defendersY.length > 0 ? defendersY[0] : -9999;
+        // 上位2人目のYを採用（いなければ1人目、0人なら判定なし）
+        const offsideLine = defendersY.length >= 2 ? defendersY[1] : (defendersY[0] ?? -9999);
 
+        // ラインより前（Yが小さい）ならオフサイド
         if (recv.pos.y < offsideLine - 10) {
           this.result = 'OFFSIDE';
           return;
