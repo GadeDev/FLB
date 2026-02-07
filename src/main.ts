@@ -17,7 +17,7 @@ type UIState = {
   tactic: Tactic;
   dragging: 'P1' | 'P2' | 'P3' | null;
   cleared: boolean;
-  gameComplete: boolean; // 全クリフラグ
+  gameComplete: boolean;
 };
 
 const state: UIState = {
@@ -35,15 +35,10 @@ const canvas = document.querySelector<HTMLCanvasElement>('#c');
 const renderer = canvas ? new Renderer(canvas) : null;
 const sim = new Simulator();
 
-// ★★★ 追加：画面サイズに合わせて描画領域を調整 ★★★
+// 画面リサイズ対応
 if (renderer) {
-  // 起動時に一度サイズを合わせる
   renderer.resize();
-  
-  // ウィンドウのサイズが変わったら（PCで枠を変えたときなど）合わせ直す
-  window.addEventListener('resize', () => {
-    renderer.resize();
-  });
+  window.addEventListener('resize', () => renderer.resize());
 }
 
 const elLevelDisplay = document.getElementById('level-display');
@@ -51,7 +46,7 @@ const btnReset = document.getElementById('btn-reset');
 const btnP2 = document.getElementById('btn-p2');
 const btnP3 = document.getElementById('btn-p3');
 const btnExec = document.getElementById('btn-exec');
-const btnNext = document.getElementById('btn-next'); // 保険用（通常は隠す）
+const btnNext = document.getElementById('btn-next');
 const msgToast = document.getElementById('msg-toast');
 
 // --- Helper Functions ---
@@ -67,7 +62,6 @@ function updateUI() {
   const lv = getLevel();
   if (!lv) return;
 
-  // 全クリ時の表示
   if (state.gameComplete) {
     if (elLevelDisplay) elLevelDisplay.textContent = "COMPLETE";
     if (btnExec) {
@@ -78,7 +72,6 @@ function updateUI() {
     return;
   }
 
-  // 通常時の表示
   if (elLevelDisplay) {
     elLevelDisplay.textContent = `LV.${String(state.levelIndex + 1).padStart(2, '0')}`;
   }
@@ -88,7 +81,6 @@ function updateUI() {
 
   if (btnExec) {
     btnExec.textContent = "EXECUTE";
-    // クリア済みならボタンを隠す（自動遷移待ち）
     btnExec.style.display = state.cleared ? 'none' : 'block';
   }
 }
@@ -104,7 +96,6 @@ function showToast(msg: string, isGood: boolean) {
   void msgToast.offsetWidth;
   msgToast.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
 
-  // 全クリのときは消さない（余韻）
   if (msg !== "CLEAR ALL") {
     setTimeout(() => {
       msgToast.classList.add('hidden');
@@ -128,9 +119,8 @@ if (btnP3) btnP3.onclick = () => { if(!state.gameComplete) { state.receiver = 'P
 
 if (btnReset) btnReset.onclick = () => initLevel();
 
-// EXECUTEボタン（兼RESTARTボタン）
+// EXECUTEボタン
 if (btnExec) btnExec.onclick = () => {
-  // 全クリ状態ならリスタート
   if (state.gameComplete) {
     state.levelIndex = 0;
     state.gameComplete = false;
@@ -139,26 +129,22 @@ if (btnExec) btnExec.onclick = () => {
     return;
   }
 
-  if (state.cleared) return; // 連打防止
+  if (state.cleared) return;
 
   const res = sim.run();
   
   if (res.cleared) {
     state.cleared = true;
-    updateUI(); // ボタンを隠す
+    updateUI();
 
-    // 最終ステージかどうか判定
     const isLastLevel = state.levelIndex >= state.levels.length - 1;
 
     if (isLastLevel) {
-      // 全クリア！
       state.gameComplete = true;
       showToast("CLEAR ALL", true);
-      updateUI(); // RESTARTボタンを表示
+      updateUI();
     } else {
-      // 通常クリア
-      const msg = res.reason === 'GOAL' ? 'GOAL!' : 'NICE PASS!';
-      showToast(msg, true);
+      showToast("GOAL!", true);
       
       // 0.9秒後に次へ
       setTimeout(() => {
@@ -168,7 +154,6 @@ if (btnExec) btnExec.onclick = () => {
     }
 
   } else {
-    // 失敗
     const msgs: Record<string, string> = {
       'INTERCEPT': 'INTERCEPTED!',
       'OUT': 'OUT OF BOUNDS',
