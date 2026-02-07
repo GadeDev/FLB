@@ -1,12 +1,10 @@
 export class Vec2 {
   constructor(public x: number, public y: number) {}
 
-  // これがないとエラーになります
   static from(v: { x: number; y: number }): Vec2 {
     return new Vec2(v.x, v.y);
   }
 
-  // これがないとエラーになります
   static get zero(): Vec2 {
     return new Vec2(0, 0);
   }
@@ -27,7 +25,7 @@ export class Vec2 {
     return new Vec2(this.x * s, this.y * s);
   }
 
-  // 距離を数値(number)で返す重要機能
+  // ★ここが修正ポイント！距離を「数値(number)」で返すようにします
   dist(v: Vec2): number {
     return Math.hypot(this.x - v.x, this.y - v.y);
   }
