@@ -1,41 +1,44 @@
-export type Tactic =
-  | 'HIGH_LINE'
-  | 'MID_BLOCK'
-  | 'LOW_BLOCK'
-  | 'MAN_MARK'
-  | 'ZONE'
-  | 'NORMAL';
+import { Vec2 } from '../core/Vector2';
 
-export type DefenderId = 'D1' | 'D2' | 'D3' | 'D4';
+export type Receiver = 'P2' | 'P3';
+export type Mode = 'EDIT' | 'SIM' | 'RESULT';
+export type Tactic = 'NORMAL' | 'PASS_TO_RECEIVER';
 
-export type Entity = {
+export type EntityType = 'P1' | 'P2' | 'P3' | 'DEF' | 'BALL';
+
+export interface Entity {
   id: string;
-  kind: 'player' | 'defender' | 'gk' | 'ball';
-  pos: { x: number; y: number };
-};
+  type: EntityType;         // ★重要：Renderer/Simulatorが参照
+  pos: Vec2;                // ★Vec2 class
+  radius: number;
+  team: 'ALLY' | 'ENEMY' | 'NEUTRAL';
+}
 
-export type LevelData = {
+export interface LevelData {
   id: string;
-  label: string;
-  seed: number;
-  tactic: Tactic;
-  defenders: { id: DefenderId; x: number; y: number }[];
-  gk: { x: number; y: number };
-};
+  name: string;
+  p1: { x: number; y: number };
+  p2: { x: number; y: number };
+  p3: { x: number; y: number };
+  defenders: Array<{ x: number; y: number; r?: number }>;
+  goal: { x: number; y: number; w: number; h: number };
+}
 
-export type LevelsFile = {
-  levels: Array<{
-    id: string;
-    label?: string;
-    seed?: number;
-    tactic: Tactic;
-    defenders: Array<{ id: DefenderId; x: number; y: number }>;
-    gk: { x: number; y: number };
-  }>;
-};
+export interface EditStateSnapshot {
+  p1: Vec2;
+  p2: Vec2;
+  p3: Vec2;
+  receiver: Receiver;
+}
 
-export type EditStateSnapshot = {
+export interface SimStateSnapshot {
+  entities: Entity[];
+  ball: Vec2;
+  receiver: Receiver;
   tactic: Tactic;
-  defenders: { id: DefenderId; x: number; y: number }[];
-  gk: { x: number; y: number };
-};
+}
+
+export interface ResultStateSnapshot {
+  cleared: boolean;
+  reason: 'GOAL' | 'INTERCEPT' | 'OUT' | 'NONE';
+}
