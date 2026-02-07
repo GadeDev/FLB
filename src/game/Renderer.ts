@@ -19,21 +19,23 @@ export class Renderer {
     const winW = window.innerWidth;
     const winH = window.innerHeight;
 
+    // キャンバスの内部解像度を画面サイズに合わせる
     this.canvas.width = winW * dpr;
     this.canvas.height = winH * dpr;
+    
+    // CSSサイズ
     this.canvas.style.width = `${winW}px`;
     this.canvas.style.height = `${winH}px`;
 
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // ★修正：スマホ画面いっぱいに表示するためのスケール計算
-    // 余白を最小限にするため、アスペクト比によっては一部カットされても良いなら cover、
-    // 全体を表示したいなら contain (ここでは contain で最大化)
+    // ★重要：画面全体に収まる最大サイズ（contain）を計算
     this.scale = Math.min(
       (winW * dpr) / PITCH_W, 
       (winH * dpr) / PITCH_H
     );
     
+    // 中央寄せオフセット
     this.offsetX = ((winW * dpr) - (PITCH_W * this.scale)) / 2;
     this.offsetY = ((winH * dpr) - (PITCH_H * this.scale)) / 2;
 
@@ -43,10 +45,14 @@ export class Renderer {
 
   getGamePosition(clientX: number, clientY: number): Vec2 {
     const dpr = window.devicePixelRatio || 1;
-    const rect = this.canvas.getBoundingClientRect();
-    const x = (clientX - rect.left) * dpr;
-    const y = (clientY - rect.top) * dpr;
-    return new Vec2((x - this.offsetX) / this.scale, (y - this.offsetY) / this.scale);
+    // clientX/Y は画面左上からの座標。canvasは全画面なのでそのまま使える
+    const x = clientX * dpr;
+    const y = clientY * dpr;
+
+    return new Vec2(
+      (x - this.offsetX) / this.scale,
+      (y - this.offsetY) / this.scale
+    );
   }
 
   clear() {
@@ -54,68 +60,64 @@ export class Renderer {
     this.ctx.save();
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    // 背景色（黒）
+    // 余白部分の色（CSS背景となじませる）
     this.ctx.fillStyle = '#000'; 
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.restore();
   }
 
-  // ★ハーフコート（ゴール前）仕様の描画
   drawPitch(goal: { x: number; y: number; w: number; h: number }) {
     const ctx = this.ctx;
 
-    // 芝生（明るめの緑で鮮やかに）
+    // 芝生（ゴール前・敵陣）
     ctx.fillStyle = '#2E7D32'; 
     ctx.fillRect(0, 0, PITCH_W, PITCH_H);
 
-    // ボーダー模様
+    // 芝目ボーダー
     const stripeH = PITCH_H / 10;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
     for (let i = 0; i < 10; i++) {
       if (i % 2 === 0) ctx.fillRect(0, i * stripeH, PITCH_W, stripeH);
     }
 
-    // ライン設定
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
     ctx.lineWidth = 3;
 
-    // 1. 外枠（タッチラインとゴールライン）
+    // 外枠
     ctx.strokeRect(0, 0, PITCH_W, PITCH_H);
 
-    // 2. ペナルティエリア（上＝敵陣）
+    // ペナルティエリア（上）
     const penW = 220;
     const penH = 110; 
     const penX = (PITCH_W - penW) / 2;
     ctx.strokeRect(penX, 0, penW, penH);
 
-    // 3. ゴールエリア
+    // ゴールエリア
     const goalAreaW = 100;
     const goalAreaH = 35;
     const goalAreaX = (PITCH_W - goalAreaW) / 2;
     ctx.strokeRect(goalAreaX, 0, goalAreaW, goalAreaH);
 
-    // 4. ペナルティアーク
+    // ペナルティアーク
     ctx.beginPath();
     ctx.arc(PITCH_W / 2, penH, 35, 0, Math.PI);
     ctx.stroke();
 
-    // 5. センターサークル（下＝ハーフウェーライン上）
-    // 半円だけ描画して「ここはハーフウェーラインだ」と主張
+    // センターサークル（下・半円）
     ctx.beginPath();
     ctx.arc(PITCH_W / 2, PITCH_H, 50, Math.PI, Math.PI * 2);
     ctx.stroke();
-
-    // 6. センタースポット
+    
+    // センタースポット
     ctx.fillStyle = '#fff';
     ctx.beginPath();
     ctx.arc(PITCH_W / 2, PITCH_H, 4, 0, Math.PI * 2);
     ctx.fill();
 
-    // 7. 敵ゴール（ネット表現）
+    // 敵ゴール
     ctx.save();
     ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.fillRect(goal.x, -20, goal.w, 20);
-    // ネットの編み目
     ctx.strokeStyle = '#ccc';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -145,10 +147,10 @@ export class Renderer {
       let stroke = '#fff';
       
       if (e.type === 'GK') {
-        color = '#F1C40F'; // GK
+        color = '#F1C40F'; // GK: 黄色
         stroke = '#D4AC0D';
       } else if (e.team === 'ENEMY') {
-        color = '#E74C3C'; // 敵
+        color = '#E74C3C'; // 敵: 赤
         stroke = '#C0392B';
       } else {
         // 味方（P1, P2, P3）
@@ -188,7 +190,6 @@ export class Renderer {
     ctx.stroke();
     
     ctx.setLineDash([]);
-    // 矢印先端
     const angle = Math.atan2(to.y - from.y, to.x - from.x);
     const head = 12;
     ctx.beginPath();
