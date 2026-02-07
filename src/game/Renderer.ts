@@ -6,7 +6,6 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private time = 0;
   
-  // 座標変換用のパラメータを保持
   private scale = 1;
   private offsetX = 0;
   private offsetY = 0;
@@ -29,7 +28,6 @@ export class Renderer {
 
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // スケールとオフセットを計算して保存
     this.scale = Math.min(
       (rect.width * dpr) / PITCH_W, 
       (rect.height * dpr) / PITCH_H
@@ -42,16 +40,13 @@ export class Renderer {
     this.ctx.scale(this.scale, this.scale);
   }
 
-  // ★重要：画面上のクリック位置をゲーム内座標に変換する
   getGamePosition(clientX: number, clientY: number): Vec2 {
     const rect = this.canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
 
-    // キャンバス上のピクセル位置（DPR考慮）
     const x = (clientX - rect.left) * dpr;
     const y = (clientY - rect.top) * dpr;
 
-    // 逆変換： (ピクセル - オフセット) / スケール
     return new Vec2(
       (x - this.offsetX) / this.scale,
       (y - this.offsetY) / this.scale
@@ -116,7 +111,12 @@ export class Renderer {
         color = '#FFD700';
       } else if (e.team === 'ENEMY') {
         color = '#FF0055';
+      } else if (e.type === 'P1') {
+        // P1（パサー）は固定なので点滅させない（少し暗くてもいい）
+        color = '#007AA8'; 
+        stroke = '#00F2FF';
       } else {
+        // P2, P3（操作可能）のみ点滅
         const blink = Math.abs(Math.sin(this.time)) * 0.5 + 0.5;
         color = `rgba(0, 242, 255, ${blink})`; 
         stroke = '#00F2FF';
