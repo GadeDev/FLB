@@ -17,34 +17,49 @@ const KICK_DELAY = 0.25;    // キックまでのタメ時間
 export class Simulator {
   entities: Entity[] = [];
   ball: Vec2 = new Vec2(0, 0);
+
   receiver: Receiver = 'P2';
+  tactic: Tactic = 'PASS_TO_RECEIVER'; // ★追加：tacticを保持（未使用扱い回避）
+
   goal = { x: 0, y: 0, w: 0, h: 0 };
-  
+
   result: SimResult = null;
 
   private time = 0;
   private phase: 'WAIT' | 'PASS' | 'SHOOT' = 'WAIT';
   private ballVel = new Vec2(0, 0);
 
-  void tactic;
-
   initFromLevel(level: LevelData, receiver: Receiver, tactic: Tactic) {
     this.receiver = receiver;
+    this.tactic = tactic; // ★ここで使用する（noUnusedParameters対策）
+
     this.goal = level.goal;
     this.result = null;
     this.time = 0;
     this.phase = 'WAIT';
     this.ballVel = Vec2.zero;
 
-    const mkEnt = (id: string, type: any, team: any, pos: {x:number, y:number}, r: number): Entity => ({
-      id, type, team, pos: Vec2.from(pos), radius: r
+    const mkEnt = (
+      id: string,
+      type: any,
+      team: any,
+      pos: { x: number; y: number },
+      r: number
+    ): Entity => ({
+      id,
+      type,
+      team,
+      pos: Vec2.from(pos),
+      radius: r,
     });
 
     this.entities = [
       mkEnt('P1', 'P1', 'ALLY', level.p1, PLAYER_R),
       mkEnt('P2', 'P2', 'ALLY', level.p2, PLAYER_R),
       mkEnt('P3', 'P3', 'ALLY', level.p3, PLAYER_R),
-      ...level.defenders.map((d, i) => mkEnt(`D${i+1}`, 'DEF', 'ENEMY', d, d.r ?? DEF_R))
+      ...level.defenders.map((d, i) =>
+        mkEnt(`D${i + 1}`, 'DEF', 'ENEMY', d, d.r ?? DEF_R)
+      ),
     ];
 
     this.ball = this.entities[0].pos.clone();
@@ -54,6 +69,7 @@ export class Simulator {
     if (this.result) return;
 
     this.time += dt;
+
     const p1 = this.entities.find(e => e.id === 'P1')!;
     const recv = this.entities.find(e => e.id === this.receiver)!;
 
@@ -72,8 +88,9 @@ export class Simulator {
           .filter(e => e.team === 'ENEMY')
           .map(e => e.pos.y)
           .sort((a, b) => b - a);
-        
-        const offsideLine = enemyYs.length >= 2 ? enemyYs[1] : (enemyYs[0] || 9999);
+
+        const offsideLine =
+          enemyYs.length >= 2 ? enemyYs[1] : (enemyYs[0] || 9999);
 
         // 少し緩めの判定（+10pxまで許容）
         if (recv.pos.y > offsideLine + 10) {
@@ -84,27 +101,33 @@ export class Simulator {
         this.phase = 'PASS';
         const dist = recv.pos.dist(p1.pos);
         const arrivalTime = dist / BALL_PASS_SPD;
-        const leadY = recv.pos.y + (PLAYER_SPD * arrivalTime * 1.1);
+        const leadY = recv.pos.y + PLAYER_SPD * arrivalTime * 1.1;
         const target = new Vec2(recv.pos.x, leadY);
 
         this.ballVel = target.sub(p1.pos).norm().mul(BALL_PASS_SPD);
       }
-
     } else if (this.phase === 'PASS') {
       this.ball = this.ball.add(this.ballVel.mul(dt));
 
       if (this.ball.dist(recv.pos) <= BALL_R + recv.radius + 15) {
         this.phase = 'SHOOT';
-        const goalCenter = new Vec2(this.goal.x + this.goal.w / 2, this.goal.y + this.goal.h / 2);
+        const goalCenter = new Vec2(
+          this.goal.x + this.goal.w / 2,
+          this.goal.y + this.goal.h / 2
+        );
         this.ballVel = goalCenter.sub(this.ball).norm().mul(BALL_SHOOT_SPD);
       }
-
     } else if (this.phase === 'SHOOT') {
       this.ball = this.ball.add(this.ballVel.mul(dt));
     }
 
     // 3. 判定
-    if (this.ball.x < 0 || this.ball.x > PITCH_W || this.ball.y < 0 || this.ball.y > PITCH_H) {
+    if (
+      this.ball.x < 0 ||
+      this.ball.x > PITCH_W ||
+      this.ball.y < 0 ||
+      this.ball.y > PITCH_H
+    ) {
       this.result = 'OUT';
       return;
     }
@@ -118,8 +141,12 @@ export class Simulator {
       }
     }
 
-    if (this.ball.x >= this.goal.x && this.ball.x <= this.goal.x + this.goal.w &&
-        this.ball.y >= this.goal.y && this.ball.y <= this.goal.y + this.goal.h) {
+    if (
+      this.ball.x >= this.goal.x &&
+      this.ball.x <= this.goal.x + this.goal.w &&
+      this.ball.y >= this.goal.y &&
+      this.ball.y <= this.goal.y + this.goal.h
+    ) {
       this.result = 'GOAL';
     }
   }
