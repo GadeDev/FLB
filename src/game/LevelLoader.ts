@@ -2,8 +2,10 @@ import type { LevelData } from './Types';
 
 export async function loadLevels(): Promise<LevelData[]> {
   try {
-    // GitHub Pages対応（/FLB/などのパスを考慮）
-    const base = import.meta.env.BASE_URL || '/';
+    // import.meta.env が使えるように型定義が必要ですが、
+    // ここでは安全に any キャストして回避します（ビルドエラー防止）
+    const env = (import.meta as any).env;
+    const base = env?.BASE_URL || '/';
     const url = `${base}levels.json`;
     
     const res = await fetch(url);
@@ -11,7 +13,7 @@ export async function loadLevels(): Promise<LevelData[]> {
     return await res.json();
   } catch (e) {
     console.error(e);
-    // エラー時の予備データ
+    // フォールバックデータ
     return [{
       id: 'L1', name: 'Fallback',
       p1: {x:140,y:620}, p2:{x:120,y:460}, p3:{x:260,y:500},
