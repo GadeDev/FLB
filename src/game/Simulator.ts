@@ -26,6 +26,8 @@ export class Simulator {
   private phase: 'WAIT' | 'PASS' | 'SHOOT' = 'WAIT';
   private ballVel = new Vec2(0, 0);
 
+  void tactic;
+
   initFromLevel(level: LevelData, receiver: Receiver, tactic: Tactic) {
     this.receiver = receiver;
     this.goal = level.goal;
