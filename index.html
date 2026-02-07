@@ -3,63 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#08131F" />
+  <meta name="theme-color" content="#000000" />
   <title>LINE BREAK LAB</title>
-
-  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
-  <link rel="apple-touch-icon" href="./icon-192.png" />
-  
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Sans+JP:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="./public/icon-192.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
 </head>
 <body>
   <div id="app">
-    <div class="mobile-container">
-      
-      <header class="top-bar">
+    <canvas id="c"></canvas>
+    
+    <div id="ui-layer">
+      <header>
         <div class="level-badge" id="level-display">LV.01</div>
-        <div class="app-title">LINE BREAK</div>
-        <button id="btn-reset" class="icon-btn" aria-label="Reset">⟲</button>
+        <button id="btn-reset" aria-label="Reset">↺</button>
       </header>
 
-      <div class="canvas-wrapper">
-        <canvas id="c"></canvas>
-      </div>
-
-      <div class="instruction-box">
-        <div class="step">
-          <span class="step-num">1</span>
-          <span>選手をドラッグで配置</span>
+      <footer id="controls">
+        <div class="sub-controls">
+          <button id="btn-p2">P2へ</button>
+          <button id="btn-p3">P3へ</button>
         </div>
-        <div class="arrow">→</div>
-        <div class="step">
-          <span class="step-num">2</span>
-          <span>パス相手を選んで実行</span>
-        </div>
-      </div>
-
-      <footer class="bottom-panel">
-        <div class="control-row">
-          <div class="toggle-group">
-            <span class="label-mini">PASS TO</span>
-            <div class="toggle-buttons">
-              <button id="btn-p2" class="toggle-btn active">P2</button>
-              <button id="btn-p3" class="toggle-btn">P3</button>
-            </div>
-          </div>
-          
-          <button id="btn-exec" class="exec-btn">
-            EXECUTE
-          </button>
-        </div>
-        
-        <button id="btn-next" class="next-btn hidden">
-          NEXT LEVEL →
-        </button>
+        <button id="btn-exec">KICK OFF</button>
       </footer>
-
-      <div id="msg-toast" class="toast hidden">GOAL!</div>
-
+      
+      <button id="btn-next" class="hidden">NEXT LEVEL</button>
     </div>
+
+    <div id="msg-toast" class="toast hidden">GOAL!</div>
   </div>
   <script type="module" src="./src/main.ts"></script>
 </body>
