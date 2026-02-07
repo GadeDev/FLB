@@ -1,6 +1,6 @@
 import './style.css';
 import { Renderer } from './game/Renderer';
-import { Simulator } from './game/Simulator';
+import { Simulator, SimResult } from './game/Simulator';
 import { Vec2 } from './core/Vector2';
 import type { LevelData, Receiver, Tactic } from './game/Types';
 import { loadLevels } from './game/LevelLoader';
@@ -18,6 +18,7 @@ type UIState = {
   dragging: 'P1' | 'P2' | 'P3' | null;
   cleared: boolean;
   gameComplete: boolean;
+  isRunning: boolean; // アニメーション中かどうか
 };
 
 const state: UIState = {
@@ -28,6 +29,7 @@ const state: UIState = {
   dragging: null,
   cleared: false,
   gameComplete: false,
+  isRunning: false,
 };
 
 // --- DOM Elements ---
@@ -35,7 +37,7 @@ const canvas = document.querySelector<HTMLCanvasElement>('#c');
 const renderer = canvas ? new Renderer(canvas) : null;
 const sim = new Simulator();
 
-// 画面リサイズ対応
+// Resize
 if (renderer) {
   renderer.resize();
   window.addEventListener('resize', () => renderer.resize());
@@ -49,11 +51,7 @@ const btnExec = document.getElementById('btn-exec');
 const btnNext = document.getElementById('btn-next');
 const msgToast = document.getElementById('msg-toast');
 
-// --- Helper Functions ---
-function clamp(v: number, a: number, b: number) {
-  return Math.max(a, Math.min(b, v));
-}
-
+// --- Functions ---
 function getLevel(): LevelData | null {
   return state.levels[state.levelIndex] || null;
 }
@@ -76,12 +74,21 @@ function updateUI() {
     elLevelDisplay.textContent = `LV.${String(state.levelIndex + 1).padStart(2, '0')}`;
   }
   
-  if (btnP2) btnP2.classList.toggle('active', state.receiver === 'P2');
-  if (btnP3) btnP3.classList.toggle('active', state.receiver === 'P3');
+  // 実行中はボタン操作無効
+  const disabled = state.isRunning;
+  if (btnP2) {
+    btnP2.classList.toggle('active', state.receiver === 'P2');
+    (btnP2 as HTMLButtonElement).disabled = disabled;
+  }
+  if (btnP3) {
+    btnP3.classList.toggle('active', state.receiver === 'P3');
+    (btnP3 as HTMLButtonElement).disabled = disabled;
+  }
 
   if (btnExec) {
     btnExec.textContent = "EXECUTE";
     btnExec.style.display = state.cleared ? 'none' : 'block';
+    (btnExec as HTMLButtonElement).disabled = disabled;
   }
 }
 
@@ -108,18 +115,55 @@ function initLevel() {
   if (!lv) return;
   state.cleared = false;
   state.gameComplete = false;
+  state.isRunning = false;
   sim.initFromLevel(lv, state.receiver, state.tactic);
   updateUI();
 }
 
-// --- Event Listeners ---
+function handleResult(res: SimResult) {
+  state.isRunning = false;
 
-if (btnP2) btnP2.onclick = () => { if(!state.gameComplete) { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); } };
-if (btnP3) btnP3.onclick = () => { if(!state.gameComplete) { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); } };
+  if (res === 'GOAL') {
+    state.cleared = true;
+    updateUI();
 
+    const isLastLevel = state.levelIndex >= state.levels.length - 1;
+    if (isLastLevel) {
+      state.gameComplete = true;
+      showToast("CLEAR ALL", true);
+      updateUI();
+    } else {
+      showToast("GOAL!", true);
+      setTimeout(() => {
+        state.levelIndex++;
+        initLevel();
+      }, 900);
+    }
+  } else {
+    // 失敗
+    const msgs: Record<string, string> = {
+      'INTERCEPT': 'INTERCEPTED!',
+      'OUT': 'OUT OF BOUNDS',
+      'OFFSIDE': 'OFFSIDE!',
+      'NONE': 'TIME UP'
+    };
+    showToast(msgs[res!] || 'MISS', false);
+    
+    // 失敗時は少し待ってから元の位置に戻す
+    setTimeout(() => {
+      // 配置をリセットするか、そのままにするか。今回はリセットしてリトライしやすくする
+      sim.initFromLevel(getLevel()!, state.receiver, state.tactic);
+      updateUI();
+    }, 1000);
+  }
+}
+
+// --- Events ---
+
+if (btnP2) btnP2.onclick = () => { if(!state.isRunning) { state.receiver = 'P2'; sim.receiver = 'P2'; updateUI(); } };
+if (btnP3) btnP3.onclick = () => { if(!state.isRunning) { state.receiver = 'P3'; sim.receiver = 'P3'; updateUI(); } };
 if (btnReset) btnReset.onclick = () => initLevel();
 
-// EXECUTEボタン
 if (btnExec) btnExec.onclick = () => {
   if (state.gameComplete) {
     state.levelIndex = 0;
@@ -128,51 +172,50 @@ if (btnExec) btnExec.onclick = () => {
     initLevel();
     return;
   }
+  if (state.isRunning || state.cleared) return;
 
-  if (state.cleared) return;
-
-  const res = sim.run();
-  
-  if (res.cleared) {
-    state.cleared = true;
-    updateUI();
-
-    const isLastLevel = state.levelIndex >= state.levels.length - 1;
-
-    if (isLastLevel) {
-      state.gameComplete = true;
-      showToast("CLEAR ALL", true);
-      updateUI();
-    } else {
-      showToast("GOAL!", true);
-      
-      // 0.9秒後に次へ
-      setTimeout(() => {
-        state.levelIndex++;
-        initLevel();
-      }, 900);
-    }
-
-  } else {
-    const msgs: Record<string, string> = {
-      'INTERCEPT': 'INTERCEPTED!',
-      'OUT': 'OUT OF BOUNDS',
-      'NONE': 'MISSED TARGET'
-    };
-    showToast(msgs[res.reason] || 'MISS', false);
-  }
+  // アニメーション開始
+  state.isRunning = true;
+  updateUI(); // ボタン無効化
 };
 
-// --- Canvas Interaction ---
+// --- Loop ---
+function loop() {
+  if (renderer && canvas) {
+    // アニメーション更新
+    if (state.isRunning) {
+      sim.update(0.016); // 60FPS固定ステップ
+      if (sim.result) {
+        handleResult(sim.result);
+      }
+    }
+
+    renderer.clear();
+    const lv = getLevel();
+    if (lv) {
+      renderer.drawPitch(lv.goal);
+      renderer.drawEntities(sim.entities, sim.ball);
+
+      // 待機中だけパスガイドを出す
+      if (!state.isRunning && !state.gameComplete) {
+        const p1 = sim.entities.find(e => e.id === 'P1');
+        const recv = sim.entities.find(e => e.id === state.receiver);
+        if (p1 && recv) {
+          renderer.drawArrow(p1.pos, recv.pos);
+        }
+      }
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+// --- Drag ---
 function canvasToLocal(e: PointerEvent): Vec2 {
   if (!canvas) return new Vec2(0,0);
   const rect = canvas.getBoundingClientRect();
   const scaleX = PITCH_W / rect.width;
   const scaleY = PITCH_H / rect.height;
-  return new Vec2(
-    (e.clientX - rect.left) * scaleX,
-    (e.clientY - rect.top) * scaleY
-  );
+  return new Vec2((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
 }
 
 function pickEntity(x: number, y: number): 'P1' | 'P2' | 'P3' | null {
@@ -187,7 +230,7 @@ function pickEntity(x: number, y: number): 'P1' | 'P2' | 'P3' | null {
 
 if (canvas) {
   canvas.addEventListener('pointerdown', e => {
-    if (state.gameComplete) return;
+    if (state.isRunning || state.gameComplete) return;
     const p = canvasToLocal(e);
     const id = pickEntity(p.x, p.y);
     if (id) {
@@ -195,44 +238,24 @@ if (canvas) {
       canvas.setPointerCapture(e.pointerId);
     }
   });
-
   canvas.addEventListener('pointermove', e => {
     if (!state.dragging) return;
     const p = canvasToLocal(e);
     const ent = sim.entities.find(en => en.id === state.dragging);
     if (!ent) return;
-
-    ent.pos = new Vec2(clamp(p.x, 20, PITCH_W - 20), clamp(p.y, 20, PITCH_H - 20));
+    
+    // 画面外に出ないようにクランプ
+    const margin = 20;
+    const x = Math.max(margin, Math.min(PITCH_W - margin, p.x));
+    const y = Math.max(margin, Math.min(PITCH_H - margin, p.y));
+    ent.pos = new Vec2(x, y);
 
     if (ent.id === 'P1') sim.ball = ent.pos.clone();
   });
-
   canvas.addEventListener('pointerup', e => {
     state.dragging = null;
     canvas.releasePointerCapture(e.pointerId);
   });
-}
-
-// --- Game Loop ---
-function loop() {
-  if (renderer && canvas) {
-    renderer.clear();
-
-    const lv = getLevel();
-    if (lv) {
-      renderer.drawPitch(lv.goal);
-      renderer.drawEntities(sim.entities, sim.ball);
-
-      if (!state.gameComplete) {
-        const p1 = sim.entities.find(e => e.id === 'P1');
-        const recv = sim.entities.find(e => e.id === state.receiver);
-        if (p1 && recv) {
-          renderer.drawArrow(p1.pos, recv.pos);
-        }
-      }
-    }
-  }
-  requestAnimationFrame(loop);
 }
 
 // --- Boot ---
